@@ -5,49 +5,83 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
 
-test('catalog lists products from the API', async ({ page }) => {
+test('home page shows hero, categories and products', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Gear that keeps up/ })).toBeVisible();
-  await expect(page.getByTestId('product-card')).toHaveCount(5);
+  await expect(page.getByRole('heading', { name: 'Better tools for the way you work.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Shop by category' })).toBeVisible();
+  await expect(page.getByTestId('product-card').first()).toBeVisible();
 });
 
-test('search filters the catalog', async ({ page }) => {
+test('shop lists every product from the API', async ({ page }) => {
+  await page.goto('/shop');
+  await expect(page.getByRole('heading', { name: 'All products', level: 1 })).toBeVisible();
+  await expect(page.getByTestId('product-card')).toHaveCount(5);
+  await expect(page.getByText('5 products')).toBeVisible();
+});
+
+test('header search finds products', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByLabel('Search products').fill('keyboard');
+  await page.getByLabel('Search products').press('Enter');
+  await expect(page).toHaveURL(/\/shop\?q=keyboard/);
   await expect(page.getByTestId('product-card')).toHaveCount(1);
   await expect(page.getByTestId('product-card')).toContainText('Mechanical Gaming Keyboard');
 
-  await page.getByLabel('Search products').fill('zzz-nothing');
+  await page.goto('/shop?q=zzz-nothing');
   await expect(page.getByText('No products found')).toBeVisible();
 });
 
-test('in-stock filter hides sold-out items', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.getByTestId('product-card')).toHaveCount(5);
-  await page.getByLabel('In stock only').check();
-  await expect(page.getByTestId('product-card')).toHaveCount(4);
+test('category and stock filters narrow the catalog', async ({ page }) => {
+  await page.goto('/shop?category=audio');
+  await expect(page.getByRole('heading', { name: 'Audio', level: 1 })).toBeVisible();
+  await expect(page.getByTestId('product-card')).toHaveCount(2);
+
+  // The filter lives in the URL, which React Router updates in a transition,
+  // so click and then wait for the state rather than using check().
+  await page.getByLabel('In stock only').click();
+  await expect(page.getByLabel('In stock only')).toBeChecked();
+  await expect(page).toHaveURL(/stock=1/);
+  await expect(page.getByTestId('product-card')).toHaveCount(1);
 });
 
-test('product detail page shows stock status', async ({ page }) => {
+test('product page shows price and stock status', async ({ page }) => {
   await page.goto('/products/4');
   await expect(page.getByRole('heading', { name: /Curved Gaming Monitor/ })).toBeVisible();
   await expect(page.getByText('Only 5 left')).toBeVisible();
-  await expect(page.getByText('$429.00')).toBeVisible();
+  await expect(page.locator('.pdp-price')).toHaveText('$429.00');
+  await expect(page.getByRole('img', { name: /Curved Gaming Monitor/ })).toBeVisible();
 });
 
-test('guests are sent to login when adding to cart', async ({ page }) => {
-  await page.goto('/');
+test('sold-out products cannot be added', async ({ page }) => {
+  await page.goto('/products/5');
+  await expect(page.getByRole('button', { name: 'Sold out' })).toBeDisabled();
+});
+
+test('guests are sent to sign in when adding to cart', async ({ page }) => {
+  await page.goto('/shop');
   await page.getByRole('button', { name: 'Add Mechanical Gaming Keyboard to cart' }).click();
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test('customer can add to cart, change quantity, and check out', async ({ page }) => {
+test('adding from the grid opens the cart drawer', async ({ page }) => {
+  await loginAs(page, 'customer@example.com', 'customer123');
+  await page.goto('/shop');
+  await page.getByRole('button', { name: 'Add Ergonomic Wireless Mouse to cart' }).click();
+
+  const drawer = page.getByRole('dialog', { name: 'Shopping cart' });
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toContainText('Ergonomic Wireless Mouse');
+  await expect(page.getByTestId('cart-count')).toHaveText('1');
+});
+
+test('customer can change quantity and check out', async ({ page }) => {
   await loginAs(page, 'customer@example.com', 'customer123');
 
   await page.goto('/products/2');
   await page.getByRole('button', { name: 'Increase quantity' }).click();
   await page.getByRole('button', { name: 'Add to cart' }).click();
-  await expect(page.getByText('Added 2 × Mechanical Gaming Keyboard to cart')).toBeVisible();
+  await expect(page.getByText('Added 2 × Mechanical Gaming Keyboard to your cart')).toBeVisible();
 
   await page.goto('/cart');
   await expect(page.getByTestId('cart-item')).toHaveCount(1);
@@ -57,9 +91,9 @@ test('customer can add to cart, change quantity, and check out', async ({ page }
   await expect(page.getByTestId('cart-total')).toHaveText('$79.99');
 
   await page.getByRole('button', { name: 'Checkout' }).click();
-  await expect(page).toHaveURL(/\/orders$/);
+  await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByTestId('order')).toHaveCount(1);
-  await expect(page.getByTestId('order')).toContainText('Mechanical Gaming Keyboard');
+  await expect(page.locator('.order-detail')).toContainText('Mechanical Gaming Keyboard');
 });
 
 test('cart shows empty state after removing the last item', async ({ page }) => {
@@ -70,5 +104,5 @@ test('cart shows empty state after removing the last item', async ({ page }) => 
 
   await page.goto('/cart');
   await page.getByRole('button', { name: /^Remove / }).click();
-  await expect(page.getByText('Your cart is empty')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your cart is empty' })).toBeVisible();
 });

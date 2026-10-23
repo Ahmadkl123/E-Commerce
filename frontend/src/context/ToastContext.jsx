@@ -26,7 +26,7 @@ export function ToastProvider({ children }) {
       <div className="toast-stack" role="status" aria-live="polite">
         {toasts.map((t) => (
           <button key={t.id} className={`toast toast-${t.type}`} onClick={() => dismiss(t.id)}>
-            <span className="toast-dot" />
+            
             {t.message}
           </button>
         ))}

@@ -1,144 +1,127 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client';
+import { CATEGORIES } from '../catalog';
+import { LockIcon, ReturnIcon, ShieldIcon, TruckIcon } from '../components/Icons';
 import ProductCard from '../components/ProductCard';
+import { FREE_SHIPPING_THRESHOLD } from '../utils';
 
-const SORTS = {
-  featured: { label: 'Featured', fn: (a, b) => a.id - b.id },
-  'price-asc': { label: 'Price: low to high', fn: (a, b) => a.price - b.price },
-  'price-desc': { label: 'Price: high to low', fn: (a, b) => b.price - a.price },
-  name: { label: 'Name A–Z', fn: (a, b) => a.name.localeCompare(b.name) },
-};
+const SERVICES = [
+  { icon: TruckIcon, title: 'Free shipping', text: `On every order over $${FREE_SHIPPING_THRESHOLD}` },
+  { icon: ReturnIcon, title: '30-day returns', text: 'Changed your mind? Send it back' },
+  { icon: ShieldIcon, title: '2-year warranty', text: 'Included on everything we sell' },
+  { icon: LockIcon, title: 'Secure checkout', text: 'Encrypted from cart to confirmation' },
+];
 
 export default function Home() {
   const [products, setProducts] = useState([]);
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('featured');
-  const [inStockOnly, setInStockOnly] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Search runs on the server (?search=) with a short debounce.
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const data = await api.getProducts(search);
-        if (!cancelled) {
-          setProducts(data);
-          setError('');
-        }
-      } catch (err) {
-        if (!cancelled) setError(err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [search]);
+    api.getProducts().then(setProducts, (err) => setError(err.message));
+  }, []);
 
-  const visible = useMemo(() => {
-    const list = inStockOnly ? products.filter((p) => p.stock > 0) : [...products];
-    return list.sort(SORTS[sort].fn);
-  }, [products, sort, inStockOnly]);
+  const featured = products.filter((p) => p.stock > 0).slice(0, 4);
+  const newest = [...products].sort((a, b) => b.id - a.id).slice(0, 4);
 
   return (
     <>
       <section className="hero">
-        <div className="hero-glow" />
-        <div className="container hero-inner">
-          <span className="eyebrow">New season · Free shipping</span>
-          <h1>
-            Gear that keeps up <br />
-            with <span className="gradient-text">your ideas.</span>
-          </h1>
-          <p className="hero-sub">
-            Headphones, keyboards, monitors and more, hand-picked for creators, gamers and builders.
+        <div className="hero-copy">
+          <p className="eyebrow">The desk edit</p>
+          <h1>Better tools for the way you work.</h1>
+          <p className="hero-text">
+            Keyboards, audio and accessories chosen for everyday use, with free shipping over $
+            {FREE_SHIPPING_THRESHOLD} and a two-year warranty on every order.
           </p>
           <div className="hero-actions">
-            <a href="#catalog" className="btn btn-primary btn-lg">
-              Shop now
-            </a>
-            <a href="#catalog" className="btn btn-ghost btn-lg">
-              Browse catalog
-            </a>
+            <Link to="/shop" className="btn btn-dark">
+              Shop all products
+            </Link>
+            <Link to="/shop?category=audio" className="btn btn-outline">
+              Shop audio
+            </Link>
           </div>
-          <div className="hero-stats">
-            <div>
-              <strong>{products.length || '—'}</strong>
-              <span>Products</span>
-            </div>
-            <div>
-              <strong>24h</strong>
-              <span>Dispatch</span>
-            </div>
-            <div>
-              <strong>30-day</strong>
-              <span>Returns</span>
-            </div>
-          </div>
+        </div>
+        <div className="hero-media">
+          <img src="/images/site/hero.jpg" alt="Minimal white desk with a keyboard and drawing tablet" />
         </div>
       </section>
 
-      <section id="catalog" className="container page">
-        <div className="toolbar">
-          <h2 className="section-title">Catalog</h2>
-          <div className="toolbar-controls">
-            <input
-              type="search"
-              className="input"
-              placeholder="Search products…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search products"
-            />
-            <select
-              className="input"
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-              aria-label="Sort products"
-            >
-              {Object.entries(SORTS).map(([key, s]) => (
-                <option key={key} value={key}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={inStockOnly}
-                onChange={(e) => setInStockOnly(e.target.checked)}
-              />
-              In stock only
-            </label>
-          </div>
+      <section className="container section">
+        <div className="section-head">
+          <h2>Shop by category</h2>
         </div>
+        <div className="category-grid">
+          {CATEGORIES.map((c) => (
+            <Link key={c.slug} to={`/shop?category=${c.slug}`} className="category-tile">
+              <img src={c.image} alt="" loading="lazy" />
+              <span>{c.label}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
 
+      <section className="container section">
+        <div className="section-head">
+          <h2>Bestsellers</h2>
+          <Link to="/shop" className="link-underline">
+            View all
+          </Link>
+        </div>
         {error && <div className="alert alert-error">{error}</div>}
+        <div className="product-grid">
+          {featured.map((p) => (
+            <ProductCard key={p.id} product={p} />
+          ))}
+        </div>
+      </section>
 
-        {loading && products.length === 0 ? (
-          <div className="grid">
-            {Array.from({ length: 8 }, (_, i) => (
-              <div key={i} className="card skeleton" />
-            ))}
+      <section className="editorial">
+        <div className="editorial-media">
+          <img src="/images/site/editorial.jpg" alt="Laptop on a wooden desk next to a plant" loading="lazy" />
+        </div>
+        <div className="editorial-copy">
+          <p className="eyebrow">Built to last</p>
+          <h2>Fewer, better things.</h2>
+          <p>
+            We test everything we stock for a month before it goes on sale. If it doesn't hold up to daily
+            use, it doesn't make the cut. That's why every product ships with a two-year warranty.
+          </p>
+          <Link to="/shop" className="btn btn-dark">
+            Explore the range
+          </Link>
+        </div>
+      </section>
+
+      {newest.length > 0 && (
+        <section className="container section">
+          <div className="section-head">
+            <h2>New arrivals</h2>
+            <Link to="/shop?sort=newest" className="link-underline">
+              View all
+            </Link>
           </div>
-        ) : visible.length === 0 && !error ? (
-          <div className="empty-state">
-            <div className="empty-icon">🔍</div>
-            <h3>No products found</h3>
-            <p className="muted">Try a different search term.</p>
-          </div>
-        ) : (
-          <div className={`grid ${loading ? 'is-loading' : ''}`}>
-            {visible.map((p) => (
+          <div className="product-grid">
+            {newest.map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}
           </div>
-        )}
+        </section>
+      )}
+
+      <section className="services">
+        <div className="container services-grid">
+          {SERVICES.map(({ icon: Icon, title, text }) => (
+            <div key={title} className="service">
+              <Icon size={26} />
+              <div>
+                <strong>{title}</strong>
+                <span>{text}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
     </>
   );

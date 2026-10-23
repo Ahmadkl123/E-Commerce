@@ -9,6 +9,7 @@ export function CartProvider({ children }) {
   const { user } = useAuth();
   const [cart, setCart] = useState(EMPTY_CART);
   const [loading, setLoading] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -72,13 +73,16 @@ export function CartProvider({ children }) {
       total: cart.total,
       count: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       loading,
+      drawerOpen,
+      openDrawer: () => setDrawerOpen(true),
+      closeDrawer: () => setDrawerOpen(false),
       add,
       remove,
       setQuantity,
       checkout,
       refresh,
     }),
-    [cart, loading, add, remove, setQuantity, checkout, refresh]
+    [cart, loading, drawerOpen, add, remove, setQuantity, checkout, refresh]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

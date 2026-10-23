@@ -1,6 +1,6 @@
-export default function QuantityStepper({ value, min = 1, max, onChange, disabled }) {
+export default function QuantityStepper({ value, min = 1, max, onChange, disabled, size }) {
   return (
-    <div className="stepper">
+    <div className={`stepper ${size === 'sm' ? 'stepper-sm' : ''}`}>
       <button
         type="button"
         aria-label="Decrease quantity"

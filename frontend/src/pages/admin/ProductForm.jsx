@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CloseIcon } from '../../components/Icons';
 
 const EMPTY = { name: '', description: '', price: '', stock: '' };
 
@@ -47,7 +48,7 @@ export default function ProductForm({ product, onSubmit, onClose }) {
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form
-        className="card modal"
+        className="modal"
         onSubmit={handleSubmit}
         role="dialog"
         aria-modal="true"
@@ -55,9 +56,9 @@ export default function ProductForm({ product, onSubmit, onClose }) {
         noValidate
       >
         <div className="modal-head">
-          <h2 id="product-form-title">{product ? 'Edit product' : 'New product'}</h2>
+          <h2 id="product-form-title">{product ? 'Edit product' : 'Add product'}</h2>
           <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
-            ✕
+            <CloseIcon />
           </button>
         </div>
 
@@ -102,10 +103,10 @@ export default function ProductForm({ product, onSubmit, onClose }) {
         </div>
 
         <div className="modal-actions">
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
+          <button type="button" className="btn btn-outline" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" disabled={busy}>
+          <button className="btn btn-dark" disabled={busy}>
             {busy ? 'Saving…' : product ? 'Save changes' : 'Create product'}
           </button>
         </div>

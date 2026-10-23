@@ -8,10 +8,10 @@ test.beforeEach(async ({ page }) => {
 test('customers cannot open the admin dashboard', async ({ page }) => {
   await loginAs(page, 'customer@example.com', 'customer123');
   await page.goto('/admin');
-  await expect(page.getByRole('heading', { name: 'Admins only' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Access restricted' })).toBeVisible();
 });
 
-test('admin sees inventory stats and can filter low stock', async ({ page }) => {
+test('admin sees inventory stats and can filter by stock', async ({ page }) => {
   await loginAs(page, 'admin@example.com', 'admin123');
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByTestId('stat-products')).toHaveText('5');
@@ -27,7 +27,7 @@ test('admin can create, edit and delete a product', async ({ page }) => {
   await loginAs(page, 'admin@example.com', 'admin123');
 
   // Create
-  await page.getByRole('button', { name: '+ New product' }).click();
+  await page.getByRole('button', { name: 'Add product' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Name').fill('Wireless Gaming Mouse');
   await dialog.getByLabel('Description').fill('Ultra-fast sensor');
@@ -53,7 +53,7 @@ test('admin can create, edit and delete a product', async ({ page }) => {
 
 test('product form validates input', async ({ page }) => {
   await loginAs(page, 'admin@example.com', 'admin123');
-  await page.getByRole('button', { name: '+ New product' }).click();
+  await page.getByRole('button', { name: 'Add product' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Name').fill('Broken');
   await dialog.getByLabel('Price (USD)').fill('-5');

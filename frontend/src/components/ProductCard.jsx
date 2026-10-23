@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import ProductVisual from './ProductVisual';
+import { categoryLabel, productCategory, productImage } from '../catalog';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
-import { formatPrice, stockStatus } from '../utils';
+import { formatPrice, LOW_STOCK } from '../utils';
 
 export default function ProductCard({ product }) {
   const { user } = useAuth();
@@ -12,7 +12,7 @@ export default function ProductCard({ product }) {
   const toast = useToast();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
-  const status = stockStatus(product.stock);
+  const soldOut = product.stock <= 0;
 
   async function handleAdd() {
     if (!user) {
@@ -22,7 +22,7 @@ export default function ProductCard({ product }) {
     setBusy(true);
     try {
       await cart.add(product.id, 1);
-      toast(`${product.name} added to cart`);
+      cart.openDrawer();
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -31,27 +31,28 @@ export default function ProductCard({ product }) {
   }
 
   return (
-    <article className="card product-card" data-testid="product-card">
-      <Link to={`/products/${product.id}`} className="product-card-link">
-        <ProductVisual product={product} />
-        <div className="product-card-body">
-          <h3 className="product-card-title">{product.name}</h3>
-          <p className="product-card-desc">{product.description}</p>
-        </div>
-      </Link>
-      <div className="product-card-footer">
-        <div>
-          <div className="price">{formatPrice(product.price)}</div>
-          <span className={`badge badge-${status.tone}`}>{status.label}</span>
-        </div>
+    <article className="product-card" data-testid="product-card">
+      <div className="product-card-top">
+        <Link to={`/products/${product.id}`} className="product-card-media">
+          <img src={productImage(product)} alt={product.name} loading="lazy" />
+          {soldOut && <span className="product-flag">Sold out</span>}
+          {!soldOut && product.stock <= LOW_STOCK && <span className="product-flag">Low stock</span>}
+        </Link>
         <button
-          className="btn btn-primary btn-sm"
+          className="quick-add"
           onClick={handleAdd}
-          disabled={busy || product.stock <= 0}
+          disabled={busy || soldOut}
           aria-label={`Add ${product.name} to cart`}
         >
-          {busy ? 'Adding…' : 'Add'}
+          {soldOut ? 'Sold out' : busy ? 'Adding…' : 'Add to cart'}
         </button>
+      </div>
+      <div className="product-card-info">
+        <span className="product-card-category">{categoryLabel(productCategory(product))}</span>
+        <Link to={`/products/${product.id}`} className="product-card-name">
+          {product.name}
+        </Link>
+        <span className="product-card-price">{formatPrice(product.price)}</span>
       </div>
     </article>
   );
