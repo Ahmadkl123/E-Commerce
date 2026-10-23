@@ -1,0 +1,15 @@
+- name: Configurer Prometheus
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Écrire prometheus.yml
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/prometheus.yml"
+        mode: "0644"
+        content: |
+          global:
+            scrape_interval: 15s
+          scrape_configs:
+            - job_name: prometheus
+              static_configs:
+                - targets: ["localhost:9090"]
