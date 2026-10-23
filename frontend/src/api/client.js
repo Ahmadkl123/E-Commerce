@@ -40,7 +40,11 @@ async function request(path, { method = 'GET', body } = {}) {
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const message = data?.error || `Request failed (${res.status})`;
+    // 502-504 without a JSON body come from the dev proxy when the backend is down.
+    const unreachable = !data && res.status >= 502 && res.status <= 504;
+    const message = unreachable
+      ? 'Cannot reach the server. Is the backend running on port 5000?'
+      : data?.error || `Request failed (${res.status})`;
     // The backend answers 401 for a missing token and 403 "Invalid or expired token"
     // for a bad one; both mean the stored session is no longer usable.
     const sessionDead =

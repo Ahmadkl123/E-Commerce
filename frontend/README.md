@@ -1,4 +1,4 @@
-# E-Commerce Frontend (Nova Store)
+# E-Commerce Frontend (Kestrel)
 
 React storefront and admin inventory dashboard for the **E-Commerce Application with CI/CD** project.
 It consumes the REST API in [`../backend`](../backend).
@@ -9,14 +9,16 @@ Built with **React 19**, **Vite**, **React Router**, and **Playwright** for end-
 
 | Area | What it does | Backend endpoints |
 |---|---|---|
-| **Storefront** | Hero landing, catalog grid, server-side search, sorting, "in stock only" filter | `GET /api/products?search=` |
+| **Storefront** | Home page (hero, categories, bestsellers, new arrivals), shop page with category / availability filters, sorting and header search | `GET /api/products?search=` |
 | **Product page** | Details, stock status, quantity picker capped at available stock | `GET /api/products/:id` |
 | **Auth** | Sign in, register (client-side validation mirrors the backend), session kept in `localStorage`, auto-logout on expired JWT | `POST /api/auth/login`, `POST /api/auth/register` |
-| **Cart** | Change quantities, remove items, order summary | `GET/POST /api/cart`, `DELETE /api/cart/:productId` |
-| **Checkout & orders** | One-click checkout, order history with line items | `POST /api/orders`, `GET /api/orders` |
+| **Cart** | Slide-out cart drawer with free-shipping progress, full cart page, change quantities, remove items | `GET/POST /api/cart`, `DELETE /api/cart/:productId` |
+| **Checkout & account** | One-click checkout, account page with order history | `POST /api/orders`, `GET /api/orders` |
 | **Admin dashboard** | Inventory stats (units, value, low stock), filter table, create / edit / delete products | `POST/PUT/DELETE /api/products` (admin JWT) |
 
-Responsive from phone to desktop, with a dark theme, loading skeletons, and toast notifications.
+Light retail design with real product photography (credits in [`public/images/CREDITS.md`](public/images/CREDITS.md)), responsive from phone to desktop.
+
+The backend has no image or category fields, so both are derived from the product name in [`src/catalog.js`](src/catalog.js). New products created in the admin get a matching photo when their name contains a known keyword (e.g. "keyboard", "headphones"), otherwise a neutral placeholder.
 
 ## Getting started
 
@@ -72,10 +74,12 @@ admin-only access, inventory filters, and admin product create / edit / delete w
 ```
 src/
   api/client.js          # fetch wrapper + every backend endpoint
-  context/               # Auth (JWT session), Cart, Toast providers
-  components/            # Navbar, ProductCard, ProductVisual, QuantityStepper, RequireAuth
-  pages/                 # Home, ProductDetail, Cart, Orders, Login, Register
+  catalog.js             # product -> photo / category mapping
+  context/               # Auth (JWT session), Cart (+ drawer state), Toast providers
+  components/            # Header, Footer, CartDrawer, ProductCard, Icons, QuantityStepper, RequireAuth
+  pages/                 # Home, Shop, ProductDetail, Cart, Account, Login, Register
   pages/admin/           # AdminDashboard, ProductForm
   styles.css             # design tokens + all styles
+public/images/           # product and site photography
 e2e/                     # Playwright specs + API mock
 ```

@@ -29,7 +29,7 @@ export default function Register() {
     setBusy(true);
     try {
       await register(email, password);
-      toast('Account created. Welcome to Nova Store!');
+      toast('Your account has been created.');
       // The `if (user)` redirect above takes over once the session is set.
     } catch (err) {
       setError(err.message);
@@ -39,11 +39,15 @@ export default function Register() {
 
   return (
     <div className="container page auth-page">
-      <form className="card auth-card" onSubmit={handleSubmit} noValidate>
+      <form className="auth-form" onSubmit={handleSubmit} noValidate>
         <h1>Create account</h1>
-        <p className="muted">Join Nova Store in seconds.</p>
+        <p className="muted">Track orders and check out faster.</p>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        {error && (
+          <div className="alert alert-error" role="alert">
+            {error}
+          </div>
+        )}
 
         <label className="field">
           <span>Email</span>
@@ -66,6 +70,7 @@ export default function Register() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+          <small className="muted">At least 6 characters.</small>
         </label>
         <label className="field">
           <span>Confirm password</span>
@@ -79,11 +84,11 @@ export default function Register() {
           />
         </label>
 
-        <button className="btn btn-primary btn-lg btn-block" disabled={busy}>
+        <button className="btn btn-dark btn-block" disabled={busy}>
           {busy ? 'Creating account…' : 'Create account'}
         </button>
 
-        <p className="center small">
+        <p className="auth-switch">
           Already have an account? <Link to="/login">Sign in</Link>
         </p>
       </form>

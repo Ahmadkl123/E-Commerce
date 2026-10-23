@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
 
 const DEMO_ACCOUNTS = [
-  { label: 'Customer demo', email: 'customer@example.com', password: 'customer123' },
-  { label: 'Admin demo', email: 'admin@example.com', password: 'admin123' },
+  { label: 'customer', email: 'customer@example.com', password: 'customer123' },
+  { label: 'admin', email: 'admin@example.com', password: 'admin123' },
 ];
 
 export default function Login() {
   const { user, isAdmin, login } = useAuth();
-  const toast = useToast();
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,8 +26,7 @@ export default function Login() {
     setError('');
     setBusy(true);
     try {
-      const loggedIn = await login(email, password);
-      toast(`Welcome back, ${loggedIn.email}`);
+      await login(email, password);
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -38,11 +35,15 @@ export default function Login() {
 
   return (
     <div className="container page auth-page">
-      <form className="card auth-card" onSubmit={handleSubmit}>
+      <form className="auth-form" onSubmit={handleSubmit}>
         <h1>Sign in</h1>
-        <p className="muted">Welcome back! Sign in to shop and track orders.</p>
+        <p className="muted">Sign in to check out and view your orders.</p>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        {error && (
+          <div className="alert alert-error" role="alert">
+            {error}
+          </div>
+        )}
 
         <label className="field">
           <span>Email</span>
@@ -67,30 +68,30 @@ export default function Login() {
           />
         </label>
 
-        <button className="btn btn-primary btn-lg btn-block" disabled={busy}>
+        <button className="btn btn-dark btn-block" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
 
-        <div className="demo-accounts">
-          <span className="muted small">Quick fill:</span>
+        <p className="auth-switch">
+          Don't have an account? <Link to="/register">Create one</Link>
+        </p>
+
+        <div className="demo-note">
+          <span>Demo accounts:</span>
           {DEMO_ACCOUNTS.map((acc) => (
             <button
               key={acc.email}
               type="button"
-              className="chip"
+              className="text-button"
               onClick={() => {
                 setEmail(acc.email);
                 setPassword(acc.password);
               }}
             >
-              {acc.label}
+              Use {acc.label}
             </button>
           ))}
         </div>
-
-        <p className="center small">
-          New here? <Link to="/register">Create an account</Link>
-        </p>
       </form>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function RequireAuth({ children, admin = false }) {
@@ -12,9 +12,11 @@ export default function RequireAuth({ children, admin = false }) {
     return (
       <div className="container page">
         <div className="empty-state">
-          <div className="empty-icon">🔒</div>
-          <h2>Admins only</h2>
-          <p className="muted">You need an administrator account to view the dashboard.</p>
+          <h1>Access restricted</h1>
+          <p className="muted">This area is only available to store administrators.</p>
+          <Link to="/" className="btn btn-dark">
+            Back to store
+          </Link>
         </div>
       </div>
     );

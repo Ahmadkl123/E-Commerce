@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../api/client';
-import ProductVisual from '../../components/ProductVisual';
+import { categoryLabel, productCategory, productImage } from '../../catalog';
 import { useToast } from '../../context/ToastContext';
 import { formatPrice, LOW_STOCK, stockStatus } from '../../utils';
 import ProductForm from './ProductForm';
@@ -55,10 +55,10 @@ export default function AdminDashboard() {
   async function handleSave(data) {
     if (editing?.id) {
       await api.updateProduct(editing.id, data);
-      toast(`Updated "${data.name}"`);
+      toast(`Saved changes to ${data.name}`);
     } else {
       await api.createProduct(data);
-      toast(`Created "${data.name}"`);
+      toast(`${data.name} was added to the catalog`);
     }
     setEditing(null);
     await load();
@@ -68,7 +68,7 @@ export default function AdminDashboard() {
     if (!window.confirm(`Delete "${product.name}"? This cannot be undone.`)) return;
     try {
       await api.deleteProduct(product.id);
-      toast(`Deleted "${product.name}"`);
+      toast(`${product.name} was deleted`);
       await load();
     } catch (err) {
       toast(err.message, 'error');
@@ -78,134 +78,122 @@ export default function AdminDashboard() {
   const closeForm = useCallback(() => setEditing(null), []);
 
   return (
-    <div className="container page">
-      <div className="toolbar">
-        <div>
-          <h1 className="page-title">Inventory dashboard</h1>
-          <p className="muted">Manage the product catalog and keep an eye on stock levels.</p>
+    <div className="admin">
+      <div className="container">
+        <div className="admin-head">
+          <div>
+            <p className="eyebrow">Admin</p>
+            <h1 className="page-title">Products</h1>
+          </div>
+          <button className="btn btn-dark" onClick={() => setEditing({})}>
+            Add product
+          </button>
         </div>
-        <button className="btn btn-primary" onClick={() => setEditing({})}>
-          + New product
-        </button>
-      </div>
 
-      <div className="stats">
-        <div className="card stat">
-          <span className="stat-label">Products</span>
-          <strong className="stat-value" data-testid="stat-products">
-            {stats.count}
-          </strong>
-        </div>
-        <div className="card stat">
-          <span className="stat-label">Units in stock</span>
-          <strong className="stat-value">{stats.units.toLocaleString()}</strong>
-        </div>
-        <div className="card stat">
-          <span className="stat-label">Inventory value</span>
-          <strong className="stat-value">{formatPrice(stats.value)}</strong>
-        </div>
-        <div className={`card stat ${stats.low > 0 ? 'stat-warn' : ''}`}>
-          <span className="stat-label">Low / out of stock</span>
-          <strong className="stat-value">{stats.low}</strong>
-        </div>
-      </div>
-
-      <div className="card table-card">
-        <div className="table-toolbar">
-          <input
-            type="search"
-            className="input"
-            placeholder="Filter by name or ID…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Filter inventory"
-          />
-          <div className="segmented" role="group" aria-label="Stock filter">
-            {Object.entries(FILTERS).map(([key, f]) => (
-              <button
-                key={key}
-                className={filter === key ? 'active' : ''}
-                onClick={() => setFilter(key)}
-              >
-                {f.label}
-              </button>
-            ))}
+        <div className="admin-stats">
+          <div className="admin-stat">
+            <span>Products</span>
+            <strong data-testid="stat-products">{stats.count}</strong>
+          </div>
+          <div className="admin-stat">
+            <span>Units in stock</span>
+            <strong>{stats.units.toLocaleString()}</strong>
+          </div>
+          <div className="admin-stat">
+            <span>Inventory value</span>
+            <strong>{formatPrice(stats.value)}</strong>
+          </div>
+          <div className="admin-stat">
+            <span>Low or out of stock</span>
+            <strong className={stats.low > 0 ? 'text-warn' : ''}>{stats.low}</strong>
           </div>
         </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        <div className="admin-panel">
+          <div className="admin-toolbar">
+            <div className="tabs" role="group" aria-label="Stock filter">
+              {Object.entries(FILTERS).map(([key, f]) => (
+                <button key={key} className={filter === key ? 'active' : ''} onClick={() => setFilter(key)}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <input
+              type="search"
+              className="input input-sm"
+              placeholder="Search by name or ID"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Filter inventory"
+            />
+          </div>
 
-        <div className="table-scroll">
-          <table className="table inventory-table">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Price</th>
-                <th>Stock</th>
-                <th>Status</th>
-                <th aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
+          {error && <div className="alert alert-error">{error}</div>}
+
+          <div className="table-wrap">
+            <table className="table inventory-table">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="center muted">
-                    Loading inventory…
-                  </td>
+                  <th>Product</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                  <th className="num">Inventory</th>
+                  <th className="num">Price</th>
+                  <th aria-label="Actions" />
                 </tr>
-              ) : visible.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="center muted">
-                    No products match.
-                  </td>
-                </tr>
-              ) : (
-                visible.map((p) => {
-                  const status = stockStatus(p.stock);
-                  return (
-                    <tr key={p.id} data-testid="inventory-row">
-                      <td>
-                        <div className="inv-product">
-                          <ProductVisual product={p} size="xs" />
-                          <div>
-                            <div className="inv-name">{p.name}</div>
-                            <div className="muted small">#{p.id}</div>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="center muted">
+                      Loading products…
+                    </td>
+                  </tr>
+                ) : visible.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="center muted">
+                      No products match your filters.
+                    </td>
+                  </tr>
+                ) : (
+                  visible.map((p) => {
+                    const status = stockStatus(p.stock);
+                    return (
+                      <tr key={p.id} data-testid="inventory-row">
+                        <td>
+                          <div className="inv-product">
+                            <img src={productImage(p)} alt="" />
+                            <div>
+                              <div className="inv-name">{p.name}</div>
+                              <div className="muted small">ID {p.id}</div>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td>{formatPrice(p.price)}</td>
-                      <td>
-                        <div className="stock-cell">
-                          <span>{p.stock}</span>
-                          <div className="stock-bar">
-                            <div
-                              className={`stock-bar-fill tone-${status.tone}`}
-                              style={{ width: `${Math.min(p.stock, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`badge badge-${status.tone}`}>{status.label}</span>
-                      </td>
-                      <td className="row-actions">
-                        <button className="btn btn-ghost btn-sm" onClick={() => setEditing(p)}>
-                          Edit
-                        </button>
-                        <button
-                          className="btn btn-danger btn-sm"
-                          onClick={() => handleDelete(p)}
-                          aria-label={`Delete ${p.name}`}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                        </td>
+                        <td>{categoryLabel(productCategory(p))}</td>
+                        <td>
+                          <span className={`pill pill-${status.tone}`}>{status.label}</span>
+                        </td>
+                        <td className="num">{p.stock} in stock</td>
+                        <td className="num">{formatPrice(p.price)}</td>
+                        <td className="row-actions">
+                          <button className="text-button" onClick={() => setEditing(p)}>
+                            Edit
+                          </button>
+                          <button
+                            className="text-button text-danger"
+                            onClick={() => handleDelete(p)}
+                            aria-label={`Delete ${p.name}`}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
