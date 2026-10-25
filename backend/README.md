@@ -275,6 +275,7 @@ All error responses follow the standard JSON format:
         "description": "Premium over-ear headphones...",
         "price": 149.99,
         "stock": 45,
+        "image_url": "/images/products/headphones.jpg",
         "created_at": "2026-10-15T12:00:00.000Z"
       }
     ]
@@ -293,7 +294,8 @@ All error responses follow the standard JSON format:
       "name": "Wireless Gaming Mouse",
       "description": "Ultra-fast sensor with RGB lighting",
       "price": 59.99,
-      "stock": 35
+      "stock": 35,
+      "image_url": "/images/products/mouse.jpg"
     }
     ```
   - **Response `201 Created`**: Created product object.
@@ -301,7 +303,7 @@ All error responses follow the standard JSON format:
 
 - **`PUT /api/products/:id`** *(Admin Only)*
   - **Auth**: `Bearer <token>` (role = admin)
-  - **Body**: `{ "name": "...", "description": "...", "price": 49.99, "stock": 20 }`
+  - **Body**: `{ "name": "...", "description": "...", "price": 49.99, "stock": 20, "image_url": "..." }`
   - **Response `200 OK`**: Updated product object.
   - **Errors**: `401 Unauthorized`, `403 Forbidden`, `404 Not Found`.
 

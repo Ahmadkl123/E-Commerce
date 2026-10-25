@@ -9,7 +9,7 @@ async function getAllProducts(req, res, next) {
   try {
     const { search } = req.query;
 
-    let sql = 'SELECT id, name, description, price, stock, created_at FROM products';
+    let sql = 'SELECT id, name, description, price, stock, image_url, created_at FROM products';
     const params = [];
 
     // Parameterized search query prevents SQL injection attacks
@@ -50,7 +50,7 @@ async function getProductById(req, res, next) {
 
     // Parameterized query ensures safe lookup
     const [rows] = await pool.query(
-      'SELECT id, name, description, price, stock, created_at FROM products WHERE id = ?',
+      'SELECT id, name, description, price, stock, image_url, created_at FROM products WHERE id = ?',
       [productId]
     );
 
@@ -75,7 +75,7 @@ async function getProductById(req, res, next) {
  */
 async function createProduct(req, res, next) {
   try {
-    const { name, description, price, stock } = req.body;
+    const { name, description, price, stock, image_url } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return res.status(400).json({ error: 'Product name is required.' });
@@ -91,9 +91,13 @@ async function createProduct(req, res, next) {
       return res.status(400).json({ error: 'Stock must be a non-negative integer.' });
     }
 
+    const trimmedImageUrl = image_url && typeof image_url === 'string' && image_url.trim() !== ''
+      ? image_url.trim()
+      : null;
+
     const [result] = await pool.query(
-      'INSERT INTO products (name, description, price, stock) VALUES (?, ?, ?, ?)',
-      [name.trim(), description || null, parsedPrice, parsedStock]
+      'INSERT INTO products (name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?)',
+      [name.trim(), description || null, parsedPrice, parsedStock, trimmedImageUrl]
     );
 
     return res.status(201).json({
@@ -103,7 +107,8 @@ async function createProduct(req, res, next) {
         name: name.trim(),
         description: description || null,
         price: Number(parsedPrice.toFixed(2)),
-        stock: parsedStock
+        stock: parsedStock,
+        image_url: trimmedImageUrl
       }
     });
   } catch (error) {
@@ -122,7 +127,7 @@ async function updateProduct(req, res, next) {
       return res.status(400).json({ error: 'Invalid product ID.' });
     }
 
-    const { name, description, price, stock } = req.body;
+    const { name, description, price, stock, image_url } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return res.status(400).json({ error: 'Product name is required.' });
@@ -138,10 +143,22 @@ async function updateProduct(req, res, next) {
       return res.status(400).json({ error: 'Stock must be a non-negative integer.' });
     }
 
-    const [result] = await pool.query(
-      'UPDATE products SET name = ?, description = ?, price = ?, stock = ? WHERE id = ?',
-      [name.trim(), description || null, parsedPrice, parsedStock, productId]
-    );
+    const trimmedImageUrl = image_url && typeof image_url === 'string' && image_url.trim() !== ''
+      ? image_url.trim()
+      : (image_url === '' || image_url === null ? null : undefined);
+
+    let result;
+    if (trimmedImageUrl !== undefined) {
+      [result] = await pool.query(
+        'UPDATE products SET name = ?, description = ?, price = ?, stock = ?, image_url = ? WHERE id = ?',
+        [name.trim(), description || null, parsedPrice, parsedStock, trimmedImageUrl, productId]
+      );
+    } else {
+      [result] = await pool.query(
+        'UPDATE products SET name = ?, description = ?, price = ?, stock = ? WHERE id = ?',
+        [name.trim(), description || null, parsedPrice, parsedStock, productId]
+      );
+    }
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Product not found.' });
@@ -154,7 +171,8 @@ async function updateProduct(req, res, next) {
         name: name.trim(),
         description: description || null,
         price: Number(parsedPrice.toFixed(2)),
-        stock: parsedStock
+        stock: parsedStock,
+        ...(trimmedImageUrl !== undefined ? { image_url: trimmedImageUrl } : {})
       }
     });
   } catch (error) {

@@ -34,10 +34,10 @@ describe('E-Commerce Backend API Tests', () => {
 
   // 2. GET /api/products
   describe('GET /api/products', () => {
-    it('should return 200 and a list of catalog products', async () => {
+    it('should return 200 and a list of catalog products including image_url', async () => {
       const mockProducts = [
-        { id: 1, name: 'Product A', description: 'Desc A', price: '19.99', stock: 10, created_at: new Date().toISOString() },
-        { id: 2, name: 'Product B', description: 'Desc B', price: '49.50', stock: 5, created_at: new Date().toISOString() }
+        { id: 1, name: 'Product A', description: 'Desc A', price: '19.99', stock: 10, image_url: '/images/products/headphones.jpg', created_at: new Date().toISOString() },
+        { id: 2, name: 'Product B', description: 'Desc B', price: '49.50', stock: 5, image_url: '/images/products/keyboard.jpg', created_at: new Date().toISOString() }
       ];
       pool.query.mockResolvedValueOnce([mockProducts]);
 
@@ -46,6 +46,7 @@ describe('E-Commerce Backend API Tests', () => {
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body).toHaveLength(2);
       expect(res.body[0].price).toBe(19.99);
+      expect(res.body[0].image_url).toBe('/images/products/headphones.jpg');
       expect(pool.query).toHaveBeenCalledTimes(1);
     });
   });

@@ -27,13 +27,14 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2. Products Table
--- Stores product catalog with inventory stock level and 2-decimal price.
+-- Stores product catalog with inventory stock level, 2-decimal price, and image URL/path.
 CREATE TABLE `products` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(255) NOT NULL,
   `description` TEXT NULL,
   `price` DECIMAL(10, 2) NOT NULL,
   `stock` INT NOT NULL DEFAULT 0,
+  `image_url` TEXT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_products_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

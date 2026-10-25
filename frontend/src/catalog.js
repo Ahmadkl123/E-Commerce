@@ -1,5 +1,6 @@
-// The backend stores no images or categories, so both are derived from the
-// product name. Photos live in public/images/products (see CREDITS.md there).
+// Product images and categories can come directly from the database (image_url / imageUrl).
+// If not present, they are gracefully derived from the product name.
+// Preset photos live in public/images/products (see CREDITS.md there).
 
 const RULES = [
   { re: /headphone|earbud|headset/i, image: 'headphones', category: 'audio' },
@@ -26,6 +27,12 @@ function match(name = '') {
 }
 
 export function productImage(product) {
+  if (product?.image_url && typeof product.image_url === 'string' && product.image_url.trim() !== '') {
+    return product.image_url.trim();
+  }
+  if (product?.imageUrl && typeof product.imageUrl === 'string' && product.imageUrl.trim() !== '') {
+    return product.imageUrl.trim();
+  }
   const rule = match(product?.name);
   return rule ? `/images/products/${rule.image}.jpg` : '/images/products/placeholder.svg';
 }
