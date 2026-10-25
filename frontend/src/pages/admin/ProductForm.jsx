@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CloseIcon } from '../../components/Icons';
 
-const EMPTY = { name: '', description: '', price: '', stock: '' };
+const EMPTY = { name: '', description: '', price: '', stock: '', image_url: '' };
 
 export default function ProductForm({ product, onSubmit, onClose }) {
   const [form, setForm] = useState(() =>
@@ -11,6 +11,7 @@ export default function ProductForm({ product, onSubmit, onClose }) {
           description: product.description ?? '',
           price: String(product.price),
           stock: String(product.stock),
+          image_url: product.image_url ?? product.imageUrl ?? '',
         }
       : EMPTY
   );
@@ -38,7 +39,13 @@ export default function ProductForm({ product, onSubmit, onClose }) {
 
     setBusy(true);
     try {
-      await onSubmit({ name: form.name.trim(), description: form.description.trim(), price, stock });
+      await onSubmit({
+        name: form.name.trim(),
+        description: form.description.trim(),
+        price,
+        stock,
+        image_url: form.image_url.trim(),
+      });
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -77,6 +84,38 @@ export default function ProductForm({ product, onSubmit, onClose }) {
             onChange={set('description')}
           />
         </label>
+        <label className="field">
+          <span>Image URL or Path</span>
+          <input
+            className="input"
+            type="text"
+            placeholder="e.g. /images/products/headphones.jpg or https://..."
+            value={form.image_url}
+            onChange={set('image_url')}
+          />
+          <small style={{ color: 'var(--muted)', marginTop: 4 }}>
+            Saved in the database. Supports local path (/images/products/...) or web image URL.
+          </small>
+        </label>
+        {form.image_url.trim() && (
+          <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <img
+              src={form.image_url.trim()}
+              alt="Preview"
+              style={{
+                width: 56,
+                height: 56,
+                objectFit: 'cover',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+              }}
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
+            <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Image preview</span>
+          </div>
+        )}
         <div className="field-row">
           <label className="field">
             <span>Price (USD)</span>

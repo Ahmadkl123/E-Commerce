@@ -17,6 +17,7 @@ async function getCart(req, res, next) {
         p.name,
         p.price,
         p.stock,
+        p.image_url,
         (ci.quantity * p.price) AS subtotal
        FROM cart_items ci
        JOIN products p ON ci.product_id = p.id
@@ -38,6 +39,7 @@ async function getCart(req, res, next) {
         price,
         stock: item.stock,
         quantity: item.quantity,
+        image_url: item.image_url,
         subtotal
       };
     });

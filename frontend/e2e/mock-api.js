@@ -2,11 +2,11 @@
 // Responses mirror the real controllers in backend/src/controllers.
 
 const SEED_PRODUCTS = [
-  { id: 1, name: 'Wireless Noise-Canceling Headphones', description: 'Premium over-ear headphones with 30-hour battery life.', price: 149.99, stock: 45 },
-  { id: 2, name: 'Mechanical Gaming Keyboard', description: 'RGB backlit mechanical keyboard with tactile blue switches.', price: 79.99, stock: 30 },
-  { id: 3, name: 'Ergonomic Wireless Mouse', description: 'Precision optical mouse with customizable shortcut buttons.', price: 39.5, stock: 60 },
-  { id: 4, name: 'Ultra-Wide Curved Gaming Monitor 34-inch', description: '144Hz refresh rate, WQHD HDR display.', price: 429.0, stock: 5 },
-  { id: 5, name: 'Studio Condenser Microphone', description: 'Cardioid USB microphone with boom arm.', price: 64.95, stock: 0 },
+  { id: 1, name: 'Wireless Noise-Canceling Headphones', description: 'Premium over-ear headphones with 30-hour battery life.', price: 149.99, stock: 45, image_url: '/images/products/headphones.jpg' },
+  { id: 2, name: 'Mechanical Gaming Keyboard', description: 'RGB backlit mechanical keyboard with tactile blue switches.', price: 79.99, stock: 30, image_url: '/images/products/keyboard.jpg' },
+  { id: 3, name: 'Ergonomic Wireless Mouse', description: 'Precision optical mouse with customizable shortcut buttons.', price: 39.5, stock: 60, image_url: '/images/products/mouse.jpg' },
+  { id: 4, name: 'Ultra-Wide Curved Gaming Monitor 34-inch', description: '144Hz refresh rate, WQHD HDR display.', price: 429.0, stock: 5, image_url: '/images/products/monitor.jpg' },
+  { id: 5, name: 'Studio Condenser Microphone', description: 'Cardioid USB microphone with boom arm.', price: 64.95, stock: 0, image_url: '/images/products/microphone.jpg' },
 ];
 
 const USERS = [

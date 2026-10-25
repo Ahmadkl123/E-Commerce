@@ -140,7 +140,8 @@ async function getOrders(req, res, next) {
         oi.product_id,
         oi.quantity,
         oi.unit_price,
-        p.name AS product_name
+        p.name AS product_name,
+        p.image_url
        FROM order_items oi
        LEFT JOIN products p ON oi.product_id = p.id
        JOIN orders o ON oi.order_id = o.id
@@ -168,6 +169,7 @@ async function getOrders(req, res, next) {
           id: item.id,
           productId: item.product_id,
           productName: item.product_name,
+          imageUrl: item.image_url,
           quantity: item.quantity,
           unitPrice: Number(item.unit_price),
           subtotal: Number((Number(item.unit_price) * item.quantity).toFixed(2))
