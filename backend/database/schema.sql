@@ -59,6 +59,8 @@ CREATE TABLE `cart_items` (
 -- Tracks completed checkout orders, total calculated at purchase, and status.
 -- payment_method / payment_details record how the order was paid. Only a safe
 -- summary is stored (e.g. 'Visa •••• 4242'); full card numbers are never saved.
+-- payment_reference is the Stripe PaymentIntent or PayPal capture id; it is
+-- unique so one real payment can never pay for two orders.
 CREATE TABLE `orders` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL,
@@ -66,8 +68,10 @@ CREATE TABLE `orders` (
   `status` VARCHAR(50) NOT NULL DEFAULT 'pending',
   `payment_method` VARCHAR(30) NULL,
   `payment_details` VARCHAR(255) NULL,
+  `payment_reference` VARCHAR(255) NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_orders_user_id` (`user_id`),
+  UNIQUE KEY `uq_orders_payment_reference` (`payment_reference`),
   CONSTRAINT `fk_orders_user` FOREIGN KEY (`user_id`)
     REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

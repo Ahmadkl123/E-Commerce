@@ -280,7 +280,7 @@ describe('E-Commerce Backend API Tests', () => {
       expect(res.body.order.status).toBe('paid');
       expect(res.body.order.paymentDetails).toBe('Visa •••• 4242');
       const insert = connection.query.mock.calls.find((c) => c[0].includes('INSERT INTO orders'));
-      expect(insert[1]).toEqual([4, 29.99, 'paid', 'card', 'Visa •••• 4242']);
+      expect(insert[1]).toEqual([4, 29.99, 'paid', 'card', 'Visa •••• 4242', null]);
     });
 
     it('accepts PayPal with an email', async () => {

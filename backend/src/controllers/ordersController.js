@@ -1,53 +1,28 @@
 const pool = require('../db');
-
-// Payment methods the checkout page offers. Payments are simulated (demo mode):
-// no real card or wallet is charged, the choice is only recorded on the order.
-const PAYMENT_METHODS = {
-  card: 'Card',
-  paypal: 'PayPal',
-  apple_pay: 'Apple Pay',
-  google_pay: 'Google Pay'
-};
-const CARD_BRANDS = ['Visa', 'Mastercard', 'American Express', 'Discover', 'Card'];
+const { PaymentError, verifyPayment, toCents } = require('../services/payments');
 
 /**
- * Validates the optional `payment` object sent with POST /api/orders.
- * Only a safe summary is kept: method + card brand + last 4 digits, or the
- * PayPal email. A full card number is never accepted or stored.
- * Returns { value: null } when no payment was sent, { value } or { error }.
+ * Refunds a provider payment when the order cannot be completed after the
+ * money was taken (for example stock ran out while the buyer was paying).
+ * Never throws: a failed refund is logged so it can be handled by hand.
  */
-function parsePayment(payment) {
-  if (payment === undefined || payment === null) return { value: null };
-  if (typeof payment !== 'object') return { error: 'Invalid payment information.' };
-
-  const { method } = payment;
-  if (!Object.prototype.hasOwnProperty.call(PAYMENT_METHODS, method)) {
-    return { error: 'Unsupported payment method.' };
+async function refundQuietly(paid) {
+  if (!paid?.refund) return;
+  try {
+    await paid.refund();
+  } catch (err) {
+    console.error(`REFUND FAILED for payment ${paid.reference}: ${err.message}`);
   }
-
-  if (method === 'card') {
-    const brand = CARD_BRANDS.includes(payment.cardBrand) ? payment.cardBrand : 'Card';
-    if (!/^\d{4}$/.test(String(payment.cardLast4 || ''))) {
-      return { error: 'Card payments must include the last 4 digits only.' };
-    }
-    return { value: { method, details: `${brand} •••• ${payment.cardLast4}` } };
-  }
-
-  if (method === 'paypal') {
-    const email = typeof payment.email === 'string' ? payment.email.trim() : '';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) {
-      return { error: 'A valid PayPal email is required.' };
-    }
-    return { value: { method, details: `PayPal (${email})` } };
-  }
-
-  return { value: { method, details: PAYMENT_METHODS[method] } };
 }
 
 /**
  * POST /api/orders
  * Converts items in the user's shopping cart into a confirmed order.
- * 
+ *
+ * Body (optional): { payment } — see services/payments.js. With Stripe or
+ * PayPal configured a verified payment is required; the provider's amount must
+ * equal the server-computed total, otherwise the payment is refunded.
+ *
  * ACID Transaction requirements:
  * 1. Acquire connection from pool
  * 2. Start transaction (beginTransaction)
@@ -62,15 +37,33 @@ function parsePayment(payment) {
 async function createOrder(req, res, next) {
   const userId = req.user.id;
 
-  // Validate payment before touching the database.
-  const payment = parsePayment(req.body?.payment);
-  if (payment.error) {
-    return res.status(400).json({ error: payment.error });
+  // 0. Verify the payment before touching order data.
+  let paid;
+  try {
+    paid = await verifyPayment(req.body?.payment, userId);
+  } catch (error) {
+    if (error instanceof PaymentError) return res.status(error.status).json({ error: error.message });
+    return next(error);
   }
-  const paid = payment.value;
-  const status = paid ? 'paid' : 'pending';
 
+  // A provider payment can only ever pay for one order.
+  if (paid?.reference) {
+    const [existing] = await pool.query('SELECT id FROM orders WHERE payment_reference = ?', [paid.reference]);
+    if (existing.length > 0) {
+      return res.status(409).json({ error: `This payment was already used for order #${existing[0].id}.` });
+    }
+  }
+
+  const status = paid ? 'paid' : 'pending';
   const connection = await pool.getConnection();
+
+  // Rolls back, refunds any provider payment and answers with an error.
+  const fail = async (code, message) => {
+    await connection.rollback();
+    await refundQuietly(paid);
+    const refunded = paid?.refund ? ' Your payment has been refunded.' : '';
+    return res.status(code).json({ error: message + refunded });
+  };
 
   try {
     await connection.beginTransaction();
@@ -95,17 +88,16 @@ async function createOrder(req, res, next) {
 
     // Cannot order an empty cart
     if (cartItems.length === 0) {
-      await connection.rollback();
-      return res.status(400).json({ error: 'Cannot create order: Shopping cart is empty.' });
+      return await fail(400, 'Cannot create order: Shopping cart is empty.');
     }
 
     // 2. Validate stock availability for each item in the cart
     for (const item of cartItems) {
       if (item.quantity > item.stock) {
-        await connection.rollback();
-        return res.status(400).json({
-          error: `Insufficient stock for product '${item.name}'. Available: ${item.stock}, in cart: ${item.quantity}.`
-        });
+        return await fail(
+          400,
+          `Insufficient stock for product '${item.name}'. Available: ${item.stock}, in cart: ${item.quantity}.`
+        );
       }
     }
 
@@ -117,11 +109,16 @@ async function createOrder(req, res, next) {
     }
     const finalTotal = Number(orderTotal.toFixed(2));
 
+    // The amount the provider actually charged must match the order total.
+    if (paid?.amountCents !== undefined && paid.amountCents !== toCents(finalTotal)) {
+      return await fail(409, 'Your cart changed during payment. Please check out again.');
+    }
+
     // 4. Create Order entry (with the payment summary when the order was paid at checkout)
     const [orderResult] = paid
       ? await connection.query(
-          'INSERT INTO orders (user_id, total, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?)',
-          [userId, finalTotal, status, paid.method, paid.details]
+          'INSERT INTO orders (user_id, total, status, payment_method, payment_details, payment_reference) VALUES (?, ?, ?, ?, ?, ?)',
+          [userId, finalTotal, status, paid.method, paid.details, paid.reference]
         )
       : await connection.query(
           'INSERT INTO orders (user_id, total, status) VALUES (?, ?, ?)',
@@ -167,6 +164,11 @@ async function createOrder(req, res, next) {
   } catch (error) {
     // On any error, rollback all changes made during this transaction
     await connection.rollback();
+    if (error.code === 'ER_DUP_ENTRY' && paid?.reference) {
+      // Another request used the same payment at the same moment; it owns the order.
+      return res.status(409).json({ error: 'This payment was already used for another order.' });
+    }
+    await refundQuietly(paid);
     next(error);
   } finally {
     // ALWAYS release the connection back to the pool so it can be reused

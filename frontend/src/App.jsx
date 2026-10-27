@@ -7,7 +7,7 @@ import RequireAuth from './components/RequireAuth';
 import Account from './pages/Account';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
+import Checkout from './pages/checkout/Checkout';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import ProductDetail from './pages/ProductDetail';

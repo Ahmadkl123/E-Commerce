@@ -164,3 +164,28 @@ test('cart shows empty state after removing the last item', async ({ page }) => 
   await page.getByRole('button', { name: /^Remove / }).click();
   await expect(page.getByRole('heading', { name: 'Your cart is empty' })).toBeVisible();
 });
+
+test('with real payments configured, checkout offers Stripe and PayPal', async ({ page }) => {
+  const db = await mockApi(page, {
+    payments: {
+      currency: 'usd',
+      demo: false,
+      stripe: { publishableKey: 'pk_test_example' },
+      paypal: { clientId: 'paypal-sandbox-client' },
+    },
+  });
+  // Keep the test offline: block the provider scripts.
+  await page.route(/js\.stripe\.com|paypal\.com/, (route) => route.abort());
+
+  await goToCheckout(page);
+  await expect(page.locator('.pay-method strong', { hasText: 'Card, Apple Pay or Google Pay' })).toBeVisible();
+  await expect(page.locator('.pay-method strong', { hasText: 'PayPal' })).toBeVisible();
+  await expect(page.getByText('Demo checkout')).toHaveCount(0);
+
+  // The secure Stripe form could not load (blocked), so a clear message is shown.
+  await expect(page.getByText('The secure payment form could not be loaded.', { exact: false })).toBeVisible();
+  expect(db.stripeIntents).toBeGreaterThan(0);
+
+  await page.locator('.pay-method strong', { hasText: 'PayPal' }).click();
+  await expect(page.getByText('PayPal could not be loaded.', { exact: false })).toBeVisible();
+});

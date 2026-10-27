@@ -79,9 +79,15 @@ export const api = {
   removeFromCart: (productId) => request(`/api/cart/${productId}`, { method: 'DELETE' }),
 
   // Orders
-  // payment: { method: 'card', cardBrand, cardLast4 } | { method: 'paypal', email }
-  //          | { method: 'apple_pay' } | { method: 'google_pay' }
+  // payment: { method: 'stripe', paymentIntentId } | { method: 'paypal', paypalOrderId }
+  //   or, in demo mode only: { method: 'card', cardBrand, cardLast4 } | { method: 'paypal', email }
+  //   | { method: 'apple_pay' } | { method: 'google_pay' }
   checkout: (payment) =>
     request('/api/orders', { method: 'POST', body: payment ? { payment } : undefined }),
   getOrders: () => request('/api/orders'),
+
+  // Payments
+  getPaymentConfig: () => request('/api/payments/config'),
+  createStripeIntent: () => request('/api/payments/stripe/intent', { method: 'POST' }),
+  createPaypalOrder: () => request('/api/payments/paypal/order', { method: 'POST' }),
 };

@@ -14,7 +14,8 @@ const USERS = [
   { id: 2, email: 'customer@example.com', password: 'customer123', role: 'customer' },
 ];
 
-export async function mockApi(page) {
+// payments: what GET /api/payments/config answers. Defaults to the demo checkout.
+export async function mockApi(page, { payments = { currency: 'usd', demo: true, stripe: null, paypal: null } } = {}) {
   const db = {
     products: SEED_PRODUCTS.map((p) => ({ ...p, created_at: '2026-10-15T12:00:00.000Z' })),
     users: USERS.map((u) => ({ ...u })),
@@ -22,6 +23,8 @@ export async function mockApi(page) {
     orders: [],
     nextProductId: 100,
     nextOrderId: 1,
+    paymentConfig: payments,
+    stripeIntents: 0,
   };
 
   const json = (route, status, body) =>
@@ -97,6 +100,14 @@ export async function mockApi(page) {
       }
       db.products.splice(idx, 1);
       return json(route, 200, { message: 'Product deleted successfully' });
+    }
+
+    // ---- Payments ----
+    if (path === '/api/payments/config' && method === 'GET') return json(route, 200, db.paymentConfig);
+    if (path === '/api/payments/stripe/intent' && method === 'POST') {
+      if (!user) return json(route, 401, { error: 'Access token required' });
+      db.stripeIntents += 1;
+      return json(route, 200, { clientSecret: `pi_test_${db.stripeIntents}_secret_x`, amount: 0 });
     }
 
     // ---- Cart & orders (authenticated) ----

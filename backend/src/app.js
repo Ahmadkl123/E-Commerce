@@ -22,11 +22,13 @@ const authRouter = require('./routes/auth');
 const productsRouter = require('./routes/products');
 const cartRouter = require('./routes/cart');
 const ordersRouter = require('./routes/orders');
+const paymentsRouter = require('./routes/payments');
 
 app.use('/api/auth', authRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/cart', cartRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/payments', paymentsRouter);
 
 // 404 Handler for undefined routes
 app.use((req, res, next) => {

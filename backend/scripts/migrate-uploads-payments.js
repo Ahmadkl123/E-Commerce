@@ -1,6 +1,6 @@
 // Upgrades an existing database in place (no data is deleted):
 //   1. products.image_url  -> MEDIUMTEXT, so uploaded photos fit in the column
-//   2. orders.payment_method / orders.payment_details -> added for checkout payments
+//   2. orders.payment_method / payment_details / payment_reference -> checkout payments
 // Safe to run more than once. Usage: npm run db:migrate
 const mysql = require('mysql2/promise');
 require('dotenv').config();
@@ -49,6 +49,13 @@ async function migrate() {
       console.log('✓ Added orders.payment_details.');
     } else {
       console.log('✓ orders.payment_details already exists.');
+    }
+    if (!(await columnInfo(connection, database, 'orders', 'payment_reference'))) {
+      await connection.query('ALTER TABLE `orders` ADD COLUMN `payment_reference` VARCHAR(255) NULL AFTER `payment_details`');
+      await connection.query('ALTER TABLE `orders` ADD UNIQUE KEY `uq_orders_payment_reference` (`payment_reference`)');
+      console.log('✓ Added orders.payment_reference (unique).');
+    } else {
+      console.log('✓ orders.payment_reference already exists.');
     }
 
     console.log('\nMigration completed successfully!');

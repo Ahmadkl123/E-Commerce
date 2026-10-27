@@ -2077,3 +2077,26 @@ textarea.input {
     grid-template-columns: 1fr;
   }
 }
+
+/* Real payment providers */
+.stripe-element {
+  position: relative;
+  min-height: 120px;
+  margin-bottom: 8px;
+}
+.stripe-skeleton {
+  height: 220px;
+  margin-bottom: 18px;
+}
+.stripe-element .stripe-skeleton {
+  position: absolute;
+  inset: 0;
+}
+.paypal-skeleton {
+  height: 110px;
+  margin-bottom: 12px;
+}
+.paypal-buttons {
+  position: relative;
+  z-index: 0;
+}
