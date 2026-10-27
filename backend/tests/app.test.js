@@ -211,4 +211,106 @@ describe('E-Commerce Backend API Tests', () => {
       expect(insertOrderCall[1]).toEqual([3, 99.98, 'pending']);
     });
   });
+  // Product image uploads (stored in products.image_url)
+  describe('POST /api/products (image upload)', () => {
+    const admin = () => generateTestToken({ id: 1, email: 'admin@example.com', role: 'admin' });
+    const base = { name: 'Lamp', description: 'Desk lamp', price: 20, stock: 3 };
+
+    it('stores an uploaded photo sent as a base64 data URL', async () => {
+      const photo = 'data:image/jpeg;base64,' + 'A'.repeat(200 * 1024);
+      pool.query.mockResolvedValueOnce([{ insertId: 42 }]);
+
+      const res = await request(app)
+        .post('/api/products')
+        .set('Authorization', `Bearer ${admin()}`)
+        .send({ ...base, image_url: photo });
+
+      expect(res.status).toBe(201);
+      expect(res.body.product.image_url).toBe(photo);
+      expect(pool.query.mock.calls[0][1][4]).toBe(photo);
+    });
+
+    it('rejects images that are not pictures', async () => {
+      const res = await request(app)
+        .post('/api/products')
+        .set('Authorization', `Bearer ${admin()}`)
+        .send({ ...base, image_url: 'data:text/html;base64,PHNjcmlwdD4=' });
+
+      expect(res.status).toBe(400);
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    it('rejects javascript: URLs', async () => {
+      const res = await request(app)
+        .post('/api/products')
+        .set('Authorization', `Bearer ${admin()}`)
+        .send({ ...base, image_url: 'javascript:alert(1)' });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // Checkout payments
+  describe('POST /api/orders (payment)', () => {
+    function mockCheckout() {
+      const connection = {
+        beginTransaction: jest.fn().mockResolvedValue(),
+        query: jest.fn(),
+        commit: jest.fn().mockResolvedValue(),
+        rollback: jest.fn().mockResolvedValue(),
+        release: jest.fn()
+      };
+      connection.query
+        .mockResolvedValueOnce([[{ cart_item_id: 1, product_id: 5, quantity: 1, name: 'Hub', price: '29.99', stock: 9 }]])
+        .mockResolvedValueOnce([{ insertId: 12 }])
+        .mockResolvedValue([{}]);
+      pool.getConnection.mockResolvedValueOnce(connection);
+      return connection;
+    }
+    const token = () => generateTestToken({ id: 4, email: 'pay@example.com', role: 'customer' });
+
+    it('marks a card-paid order as paid and stores only brand and last 4 digits', async () => {
+      const connection = mockCheckout();
+      const res = await request(app)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${token()}`)
+        .send({ payment: { method: 'card', cardBrand: 'Visa', cardLast4: '4242' } });
+
+      expect(res.status).toBe(201);
+      expect(res.body.order.status).toBe('paid');
+      expect(res.body.order.paymentDetails).toBe('Visa •••• 4242');
+      const insert = connection.query.mock.calls.find((c) => c[0].includes('INSERT INTO orders'));
+      expect(insert[1]).toEqual([4, 29.99, 'paid', 'card', 'Visa •••• 4242']);
+    });
+
+    it('accepts PayPal with an email', async () => {
+      mockCheckout();
+      const res = await request(app)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${token()}`)
+        .send({ payment: { method: 'paypal', email: 'buyer@example.com' } });
+
+      expect(res.status).toBe(201);
+      expect(res.body.order.paymentMethod).toBe('paypal');
+    });
+
+    it('rejects unknown payment methods before opening a transaction', async () => {
+      const res = await request(app)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${token()}`)
+        .send({ payment: { method: 'bitcoin' } });
+
+      expect(res.status).toBe(400);
+      expect(pool.getConnection).not.toHaveBeenCalled();
+    });
+
+    it('rejects a full card number', async () => {
+      const res = await request(app)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${token()}`)
+        .send({ payment: { method: 'card', cardLast4: '4242424242424242' } });
+
+      expect(res.status).toBe(400);
+    });
+  });
 });

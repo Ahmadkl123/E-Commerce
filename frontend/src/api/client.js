@@ -79,6 +79,9 @@ export const api = {
   removeFromCart: (productId) => request(`/api/cart/${productId}`, { method: 'DELETE' }),
 
   // Orders
-  checkout: () => request('/api/orders', { method: 'POST' }),
+  // payment: { method: 'card', cardBrand, cardLast4 } | { method: 'paypal', email }
+  //          | { method: 'apple_pay' } | { method: 'google_pay' }
+  checkout: (payment) =>
+    request('/api/orders', { method: 'POST', body: payment ? { payment } : undefined }),
   getOrders: () => request('/api/orders'),
 };

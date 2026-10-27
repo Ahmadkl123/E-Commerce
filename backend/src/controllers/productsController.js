@@ -1,5 +1,34 @@
 const pool = require('../db');
 
+// Maximum stored size of an uploaded photo (base64 data URL), about 3 MB of text.
+const MAX_IMAGE_LENGTH = 3 * 1024 * 1024;
+const DATA_URL_RE = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/;
+
+/**
+ * Validates the optional image_url field of a product.
+ * Accepts a site path (/images/...), an http(s) URL, or an uploaded photo
+ * sent as a base64 data URL. Returns { value } or { error }.
+ * value is undefined when the field was not sent, null when it was cleared.
+ */
+function parseImage(imageUrl) {
+  if (imageUrl === undefined) return { value: undefined };
+  if (imageUrl === null) return { value: null };
+  if (typeof imageUrl !== 'string') return { error: 'Image must be a string.' };
+
+  const value = imageUrl.trim();
+  if (value === '') return { value: null };
+  if (value.length > MAX_IMAGE_LENGTH) {
+    return { error: 'Image is too large. Please use a picture under 2 MB.' };
+  }
+  if (value.startsWith('data:')) {
+    return DATA_URL_RE.test(value)
+      ? { value }
+      : { error: 'Image must be a PNG, JPEG, WebP or GIF picture.' };
+  }
+  if (value.startsWith('/') || /^https?:\/\//i.test(value)) return { value };
+  return { error: 'Image must be an uploaded picture, a /path or an http(s) URL.' };
+}
+
 /**
  * GET /api/products
  * Retrieves all products from the catalog, with optional search filtering.
@@ -91,9 +120,11 @@ async function createProduct(req, res, next) {
       return res.status(400).json({ error: 'Stock must be a non-negative integer.' });
     }
 
-    const trimmedImageUrl = image_url && typeof image_url === 'string' && image_url.trim() !== ''
-      ? image_url.trim()
-      : null;
+    const image = parseImage(image_url);
+    if (image.error) {
+      return res.status(400).json({ error: image.error });
+    }
+    const trimmedImageUrl = image.value ?? null;
 
     const [result] = await pool.query(
       'INSERT INTO products (name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?)',
@@ -143,9 +174,12 @@ async function updateProduct(req, res, next) {
       return res.status(400).json({ error: 'Stock must be a non-negative integer.' });
     }
 
-    const trimmedImageUrl = image_url && typeof image_url === 'string' && image_url.trim() !== ''
-      ? image_url.trim()
-      : (image_url === '' || image_url === null ? null : undefined);
+    const image = parseImage(image_url);
+    if (image.error) {
+      return res.status(400).json({ error: image.error });
+    }
+    // undefined means "not sent": keep the current image untouched.
+    const trimmedImageUrl = image.value;
 
     let result;
     if (trimmedImageUrl !== undefined) {

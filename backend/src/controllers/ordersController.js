@@ -1,5 +1,49 @@
 const pool = require('../db');
 
+// Payment methods the checkout page offers. Payments are simulated (demo mode):
+// no real card or wallet is charged, the choice is only recorded on the order.
+const PAYMENT_METHODS = {
+  card: 'Card',
+  paypal: 'PayPal',
+  apple_pay: 'Apple Pay',
+  google_pay: 'Google Pay'
+};
+const CARD_BRANDS = ['Visa', 'Mastercard', 'American Express', 'Discover', 'Card'];
+
+/**
+ * Validates the optional `payment` object sent with POST /api/orders.
+ * Only a safe summary is kept: method + card brand + last 4 digits, or the
+ * PayPal email. A full card number is never accepted or stored.
+ * Returns { value: null } when no payment was sent, { value } or { error }.
+ */
+function parsePayment(payment) {
+  if (payment === undefined || payment === null) return { value: null };
+  if (typeof payment !== 'object') return { error: 'Invalid payment information.' };
+
+  const { method } = payment;
+  if (!Object.prototype.hasOwnProperty.call(PAYMENT_METHODS, method)) {
+    return { error: 'Unsupported payment method.' };
+  }
+
+  if (method === 'card') {
+    const brand = CARD_BRANDS.includes(payment.cardBrand) ? payment.cardBrand : 'Card';
+    if (!/^\d{4}$/.test(String(payment.cardLast4 || ''))) {
+      return { error: 'Card payments must include the last 4 digits only.' };
+    }
+    return { value: { method, details: `${brand} •••• ${payment.cardLast4}` } };
+  }
+
+  if (method === 'paypal') {
+    const email = typeof payment.email === 'string' ? payment.email.trim() : '';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) {
+      return { error: 'A valid PayPal email is required.' };
+    }
+    return { value: { method, details: `PayPal (${email})` } };
+  }
+
+  return { value: { method, details: PAYMENT_METHODS[method] } };
+}
+
 /**
  * POST /api/orders
  * Converts items in the user's shopping cart into a confirmed order.
@@ -17,6 +61,15 @@ const pool = require('../db');
  */
 async function createOrder(req, res, next) {
   const userId = req.user.id;
+
+  // Validate payment before touching the database.
+  const payment = parsePayment(req.body?.payment);
+  if (payment.error) {
+    return res.status(400).json({ error: payment.error });
+  }
+  const paid = payment.value;
+  const status = paid ? 'paid' : 'pending';
+
   const connection = await pool.getConnection();
 
   try {
@@ -64,11 +117,16 @@ async function createOrder(req, res, next) {
     }
     const finalTotal = Number(orderTotal.toFixed(2));
 
-    // 4. Create Order entry
-    const [orderResult] = await connection.query(
-      'INSERT INTO orders (user_id, total, status) VALUES (?, ?, ?)',
-      [userId, finalTotal, 'pending']
-    );
+    // 4. Create Order entry (with the payment summary when the order was paid at checkout)
+    const [orderResult] = paid
+      ? await connection.query(
+          'INSERT INTO orders (user_id, total, status, payment_method, payment_details) VALUES (?, ?, ?, ?, ?)',
+          [userId, finalTotal, status, paid.method, paid.details]
+        )
+      : await connection.query(
+          'INSERT INTO orders (user_id, total, status) VALUES (?, ?, ?)',
+          [userId, finalTotal, status]
+        );
     const orderId = orderResult.insertId;
 
     // 5. Insert order line items and decrement stock for each product
@@ -100,7 +158,9 @@ async function createOrder(req, res, next) {
         id: orderId,
         userId,
         total: finalTotal,
-        status: 'pending',
+        status,
+        paymentMethod: paid ? paid.method : null,
+        paymentDetails: paid ? paid.details : null,
         itemsCount: cartItems.length
       }
     });
@@ -124,7 +184,7 @@ async function getOrders(req, res, next) {
 
     // Retrieve user orders ordered by most recent first
     const [orders] = await pool.query(
-      'SELECT id, total, status, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC',
+      'SELECT id, total, status, payment_method, payment_details, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     );
 
@@ -157,6 +217,8 @@ async function getOrders(req, res, next) {
         id: order.id,
         total: Number(order.total),
         status: order.status,
+        paymentMethod: order.payment_method ?? null,
+        paymentDetails: order.payment_details ?? null,
         createdAt: order.created_at,
         items: []
       });

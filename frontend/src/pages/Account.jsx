@@ -91,6 +91,9 @@ export default function Account() {
                   {openId === order.id && (
                     <tr className="order-detail">
                       <td colSpan={5}>
+                        {order.paymentDetails && (
+                          <p className="order-payment">Paid with {order.paymentDetails}</p>
+                        )}
                         <ul>
                           {order.items.map((item) => (
                             <li key={item.id}>

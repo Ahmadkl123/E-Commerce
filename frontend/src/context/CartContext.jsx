@@ -61,8 +61,8 @@ export function CartProvider({ children }) {
     [cart.items, refresh]
   );
 
-  const checkout = useCallback(async () => {
-    const result = await api.checkout();
+  const checkout = useCallback(async (payment) => {
+    const result = await api.checkout(payment);
     await refresh();
     return result.order;
   }, [refresh]);

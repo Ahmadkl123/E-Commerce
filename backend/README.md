@@ -94,6 +94,13 @@ npm run db:reset
 ```
 *Note*: `npm run db:setup` and `npm run db:reset` use the `DB_ROOT_USER` and `DB_ROOT_PASSWORD` configured in your `.env` file (defaults to `root` with no password).
 
+#### Upgrading an existing database (keeps your data)
+If your database was created before product photo uploads and checkout payments were added, run:
+```bash
+npm run db:migrate
+```
+It widens `products.image_url` to `MEDIUMTEXT` (uploaded photos are stored there as base64 data URLs) and adds `orders.payment_method` and `orders.payment_details`. It is safe to run more than once.
+
 ### How to Check that Database Setup Worked
 
 Log into MySQL as the newly created user and verify tables and records:
@@ -301,6 +308,8 @@ All error responses follow the standard JSON format:
   - **Response `201 Created`**: Created product object.
   - **Errors**: `401 Unauthorized` (no token), `403 Forbidden` (not admin), `400 Bad Request` (validation error).
 
+  - **Images**: `image_url` accepts a site path (`/images/...`), an `http(s)` URL, or an uploaded photo as a `data:image/(jpeg|png|webp|gif);base64,...` data URL (max ~3 MB). Anything else returns `400`.
+
 - **`PUT /api/products/:id`** *(Admin Only)*
   - **Auth**: `Bearer <token>` (role = admin)
   - **Body**: `{ "name": "...", "description": "...", "price": 49.99, "stock": 20, "image_url": "..." }`
@@ -358,6 +367,14 @@ All error responses follow the standard JSON format:
 - **`POST /api/orders`**
   - **Auth**: `Bearer <token>`
   - **Description**: Atomically checks out all items in the user's cart using an ACID MySQL transaction.
+  - **Body (optional)**: a `payment` object chosen on the checkout page. Payments are simulated (no real charge); only a safe summary is stored and the order status becomes `"paid"`. Without `payment` the order stays `"pending"`.
+    ```json
+    { "payment": { "method": "card", "cardBrand": "Visa", "cardLast4": "4242" } }
+    { "payment": { "method": "paypal", "email": "buyer@example.com" } }
+    { "payment": { "method": "apple_pay" } }
+    { "payment": { "method": "google_pay" } }
+    ```
+    Full card numbers are rejected and never stored.
   - **Response `201 Created`**:
     ```json
     {
