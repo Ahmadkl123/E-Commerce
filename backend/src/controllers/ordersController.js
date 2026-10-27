@@ -1,9 +1,28 @@
 const pool = require('../db');
+const { PaymentError, verifyPayment, toCents } = require('../services/payments');
+
+/**
+ * Refunds a provider payment when the order cannot be completed after the
+ * money was taken (for example stock ran out while the buyer was paying).
+ * Never throws: a failed refund is logged so it can be handled by hand.
+ */
+async function refundQuietly(paid) {
+  if (!paid?.refund) return;
+  try {
+    await paid.refund();
+  } catch (err) {
+    console.error(`REFUND FAILED for payment ${paid.reference}: ${err.message}`);
+  }
+}
 
 /**
  * POST /api/orders
  * Converts items in the user's shopping cart into a confirmed order.
- * 
+ *
+ * Body (optional): { payment } — see services/payments.js. With Stripe or
+ * PayPal configured a verified payment is required; the provider's amount must
+ * equal the server-computed total, otherwise the payment is refunded.
+ *
  * ACID Transaction requirements:
  * 1. Acquire connection from pool
  * 2. Start transaction (beginTransaction)
@@ -17,7 +36,34 @@ const pool = require('../db');
  */
 async function createOrder(req, res, next) {
   const userId = req.user.id;
+
+  // 0. Verify the payment before touching order data.
+  let paid;
+  try {
+    paid = await verifyPayment(req.body?.payment, userId);
+  } catch (error) {
+    if (error instanceof PaymentError) return res.status(error.status).json({ error: error.message });
+    return next(error);
+  }
+
+  // A provider payment can only ever pay for one order.
+  if (paid?.reference) {
+    const [existing] = await pool.query('SELECT id FROM orders WHERE payment_reference = ?', [paid.reference]);
+    if (existing.length > 0) {
+      return res.status(409).json({ error: `This payment was already used for order #${existing[0].id}.` });
+    }
+  }
+
+  const status = paid ? 'paid' : 'pending';
   const connection = await pool.getConnection();
+
+  // Rolls back, refunds any provider payment and answers with an error.
+  const fail = async (code, message) => {
+    await connection.rollback();
+    await refundQuietly(paid);
+    const refunded = paid?.refund ? ' Your payment has been refunded.' : '';
+    return res.status(code).json({ error: message + refunded });
+  };
 
   try {
     await connection.beginTransaction();
@@ -42,17 +88,16 @@ async function createOrder(req, res, next) {
 
     // Cannot order an empty cart
     if (cartItems.length === 0) {
-      await connection.rollback();
-      return res.status(400).json({ error: 'Cannot create order: Shopping cart is empty.' });
+      return await fail(400, 'Cannot create order: Shopping cart is empty.');
     }
 
     // 2. Validate stock availability for each item in the cart
     for (const item of cartItems) {
       if (item.quantity > item.stock) {
-        await connection.rollback();
-        return res.status(400).json({
-          error: `Insufficient stock for product '${item.name}'. Available: ${item.stock}, in cart: ${item.quantity}.`
-        });
+        return await fail(
+          400,
+          `Insufficient stock for product '${item.name}'. Available: ${item.stock}, in cart: ${item.quantity}.`
+        );
       }
     }
 
@@ -64,11 +109,21 @@ async function createOrder(req, res, next) {
     }
     const finalTotal = Number(orderTotal.toFixed(2));
 
-    // 4. Create Order entry
-    const [orderResult] = await connection.query(
-      'INSERT INTO orders (user_id, total, status) VALUES (?, ?, ?)',
-      [userId, finalTotal, 'pending']
-    );
+    // The amount the provider actually charged must match the order total.
+    if (paid?.amountCents !== undefined && paid.amountCents !== toCents(finalTotal)) {
+      return await fail(409, 'Your cart changed during payment. Please check out again.');
+    }
+
+    // 4. Create Order entry (with the payment summary when the order was paid at checkout)
+    const [orderResult] = paid
+      ? await connection.query(
+          'INSERT INTO orders (user_id, total, status, payment_method, payment_details, payment_reference) VALUES (?, ?, ?, ?, ?, ?)',
+          [userId, finalTotal, status, paid.method, paid.details, paid.reference]
+        )
+      : await connection.query(
+          'INSERT INTO orders (user_id, total, status) VALUES (?, ?, ?)',
+          [userId, finalTotal, status]
+        );
     const orderId = orderResult.insertId;
 
     // 5. Insert order line items and decrement stock for each product
@@ -100,13 +155,20 @@ async function createOrder(req, res, next) {
         id: orderId,
         userId,
         total: finalTotal,
-        status: 'pending',
+        status,
+        paymentMethod: paid ? paid.method : null,
+        paymentDetails: paid ? paid.details : null,
         itemsCount: cartItems.length
       }
     });
   } catch (error) {
     // On any error, rollback all changes made during this transaction
     await connection.rollback();
+    if (error.code === 'ER_DUP_ENTRY' && paid?.reference) {
+      // Another request used the same payment at the same moment; it owns the order.
+      return res.status(409).json({ error: 'This payment was already used for another order.' });
+    }
+    await refundQuietly(paid);
     next(error);
   } finally {
     // ALWAYS release the connection back to the pool so it can be reused
@@ -124,7 +186,7 @@ async function getOrders(req, res, next) {
 
     // Retrieve user orders ordered by most recent first
     const [orders] = await pool.query(
-      'SELECT id, total, status, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC',
+      'SELECT id, total, status, payment_method, payment_details, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     );
 
@@ -157,6 +219,8 @@ async function getOrders(req, res, next) {
         id: order.id,
         total: Number(order.total),
         status: order.status,
+        paymentMethod: order.payment_method ?? null,
+        paymentDetails: order.payment_details ?? null,
         createdAt: order.created_at,
         items: []
       });

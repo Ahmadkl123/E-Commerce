@@ -94,6 +94,13 @@ npm run db:reset
 ```
 *Note*: `npm run db:setup` and `npm run db:reset` use the `DB_ROOT_USER` and `DB_ROOT_PASSWORD` configured in your `.env` file (defaults to `root` with no password).
 
+#### Upgrading an existing database (keeps your data)
+If your database was created before product photo uploads and checkout payments were added, run:
+```bash
+npm run db:migrate
+```
+It widens `products.image_url` to `MEDIUMTEXT` (uploaded photos are stored there as base64 data URLs) and adds `orders.payment_method` and `orders.payment_details`. It is safe to run more than once.
+
 ### How to Check that Database Setup Worked
 
 Log into MySQL as the newly created user and verify tables and records:
@@ -301,6 +308,8 @@ All error responses follow the standard JSON format:
   - **Response `201 Created`**: Created product object.
   - **Errors**: `401 Unauthorized` (no token), `403 Forbidden` (not admin), `400 Bad Request` (validation error).
 
+  - **Images**: `image_url` accepts a site path (`/images/...`), an `http(s)` URL, or an uploaded photo as a `data:image/(jpeg|png|webp|gif);base64,...` data URL (max ~3 MB). Anything else returns `400`.
+
 - **`PUT /api/products/:id`** *(Admin Only)*
   - **Auth**: `Bearer <token>` (role = admin)
   - **Body**: `{ "name": "...", "description": "...", "price": 49.99, "stock": 20, "image_url": "..." }`
@@ -358,6 +367,13 @@ All error responses follow the standard JSON format:
 - **`POST /api/orders`**
   - **Auth**: `Bearer <token>`
   - **Description**: Atomically checks out all items in the user's cart using an ACID MySQL transaction.
+  - **Body**: a `payment` object from the checkout page (see [Payments](#6-payments)). With Stripe or PayPal configured, a verified payment is **required** and the order is created with status `"paid"`.
+    ```json
+    { "payment": { "method": "stripe", "paymentIntentId": "pi_..." } }
+    { "payment": { "method": "paypal", "paypalOrderId": "5O190127TN364715T" } }
+    ```
+    The server re-checks the payment with the provider: it must have succeeded, belong to this user, match the server-computed cart total, and not have paid for another order already (`payment_reference` is unique). If the order then cannot be created (e.g. stock ran out), the payment is **refunded automatically**.
+    In demo mode only (no provider keys), simulated payments are accepted instead: `{ "method": "card", "cardBrand": "Visa", "cardLast4": "4242" }`, `{ "method": "paypal", "email": "..." }`, `{ "method": "apple_pay" }`, `{ "method": "google_pay" }`, or no body (order stays `"pending"`).
   - **Response `201 Created`**:
     ```json
     {
@@ -396,6 +412,23 @@ All error responses follow the standard JSON format:
       }
     ]
     ```
+
+### 6. Payments
+Real payments use **Stripe** (cards, Apple Pay, Google Pay) and **PayPal Checkout**. Each provider turns on when its keys are in `.env`; with no keys at all the store uses a simulated demo checkout.
+
+| Variable | Where to get it |
+|---|---|
+| `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY` | Stripe Dashboard → Developers → API keys (use the **test mode** `sk_test_` / `pk_test_` keys while developing) |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | developer.paypal.com → Apps & Credentials → Sandbox app |
+| `PAYPAL_MODE` | `sandbox` (default, test money) or `live` (real money) |
+
+Restart the server after changing `.env`, then run `npm run db:migrate` once.
+
+**Testing:** with Stripe test keys pay with card `4242 4242 4242 4242`, any future date, any CVC (`4000 0000 0000 9995` is declined). With PayPal sandbox keys log in with a sandbox *personal* account from the PayPal developer dashboard. Apple Pay / Google Pay buttons appear only on HTTPS sites (or `localhost` in Chrome for Google Pay) on a device with a wallet set up; Apple Pay also needs the domain registered in the Stripe Dashboard.
+
+- **`GET /api/payments/config`** — public. Which providers are enabled and their public keys: `{ "demo": false, "stripe": { "publishableKey": "pk_..." }, "paypal": { "clientId": "..." } }`. Secret keys are never returned.
+- **`POST /api/payments/stripe/intent`** — `Bearer <token>`. Creates a Stripe PaymentIntent for the user's cart total (computed on the server). Response: `{ "clientSecret": "...", "amount": 59.98 }`.
+- **`POST /api/payments/paypal/order`** — `Bearer <token>`. Creates a PayPal order for the cart total. Response: `{ "id": "5O190127TN364715T", "amount": 59.98 }`. The order is only captured (charged) by `POST /api/orders`.
 
 ---
 

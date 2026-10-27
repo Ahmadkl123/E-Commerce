@@ -91,9 +91,67 @@ test('customer can change quantity and check out', async ({ page }) => {
   await expect(page.getByTestId('cart-total')).toHaveText('$79.99');
 
   await page.getByRole('button', { name: 'Checkout' }).click();
+  await expect(page).toHaveURL(/\/checkout$/);
+  await expect(page.getByTestId('checkout-total')).toHaveText('$79.99');
+
+  await page.getByLabel('Card number').fill('4242424242424242');
+  await expect(page.getByLabel('Card number')).toHaveValue('4242 4242 4242 4242');
+  await page.getByLabel('Name on card').fill('Sam Customer');
+  await page.getByLabel('Expiry date').fill('1230');
+  await page.getByLabel('Security code').fill('123');
+  await page.getByRole('button', { name: 'Pay $79.99' }).click();
+
   await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByTestId('order')).toHaveCount(1);
+  await expect(page.getByTestId('order')).toContainText('paid');
   await expect(page.locator('.order-detail')).toContainText('Mechanical Gaming Keyboard');
+  await expect(page.locator('.order-detail')).toContainText('Paid with Visa •••• 4242');
+});
+
+async function goToCheckout(page) {
+  await loginAs(page, 'customer@example.com', 'customer123');
+  await page.goto('/products/3');
+  await page.getByRole('button', { name: 'Add to cart' }).click();
+  await expect(page.getByText(/Added 1 ×/)).toBeVisible();
+  await page.goto('/cart');
+  await page.getByRole('button', { name: 'Checkout' }).click();
+  await expect(page).toHaveURL(/\/checkout$/);
+}
+
+test('checkout rejects an invalid card and never sends the card number', async ({ page }) => {
+  const db = await mockApi(page);
+  await goToCheckout(page);
+
+  await page.getByLabel('Card number').fill('4242424242424241');
+  await page.getByLabel('Name on card').fill('Sam Customer');
+  await page.getByLabel('Expiry date').fill('1230');
+  await page.getByLabel('Security code').fill('123');
+  await page.getByRole('button', { name: /^Pay / }).click();
+  await expect(page.getByText('Please enter a valid card number.')).toBeVisible();
+  await expect(page).toHaveURL(/\/checkout$/);
+  expect(db.orders).toHaveLength(0);
+
+  await page.getByLabel('Card number').fill('5555555555554444');
+  await page.getByRole('button', { name: /^Pay / }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  expect(db.lastPayment).toEqual({ method: 'card', cardBrand: 'Mastercard', cardLast4: '4444' });
+});
+
+test('customer can pay with PayPal', async ({ page }) => {
+  await goToCheckout(page);
+  await page.locator('.pay-method strong', { hasText: 'PayPal' }).click();
+  await expect(page.getByLabel('PayPal email')).toHaveValue('customer@example.com');
+  await page.getByRole('button', { name: 'Pay $39.50 with PayPal' }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.locator('.order-detail')).toContainText('Paid with PayPal (customer@example.com)');
+});
+
+test('customer can pay with Google Pay', async ({ page }) => {
+  await goToCheckout(page);
+  await page.locator('.pay-method strong', { hasText: 'Google Pay' }).click();
+  await page.getByRole('button', { name: 'Pay $39.50 with Google Pay' }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.locator('.order-detail')).toContainText('Paid with Google Pay');
 });
 
 test('cart shows empty state after removing the last item', async ({ page }) => {
@@ -105,4 +163,29 @@ test('cart shows empty state after removing the last item', async ({ page }) => 
   await page.goto('/cart');
   await page.getByRole('button', { name: /^Remove / }).click();
   await expect(page.getByRole('heading', { name: 'Your cart is empty' })).toBeVisible();
+});
+
+test('with real payments configured, checkout offers Stripe and PayPal', async ({ page }) => {
+  const db = await mockApi(page, {
+    payments: {
+      currency: 'usd',
+      demo: false,
+      stripe: { publishableKey: 'pk_test_example' },
+      paypal: { clientId: 'paypal-sandbox-client' },
+    },
+  });
+  // Keep the test offline: block the provider scripts.
+  await page.route(/js\.stripe\.com|paypal\.com/, (route) => route.abort());
+
+  await goToCheckout(page);
+  await expect(page.locator('.pay-method strong', { hasText: 'Card, Apple Pay or Google Pay' })).toBeVisible();
+  await expect(page.locator('.pay-method strong', { hasText: 'PayPal' })).toBeVisible();
+  await expect(page.getByText('Demo checkout')).toHaveCount(0);
+
+  // The secure Stripe form could not load (blocked), so a clear message is shown.
+  await expect(page.getByText('The secure payment form could not be loaded.', { exact: false })).toBeVisible();
+  expect(db.stripeIntents).toBeGreaterThan(0);
+
+  await page.locator('.pay-method strong', { hasText: 'PayPal' }).click();
+  await expect(page.getByText('PayPal could not be loaded.', { exact: false })).toBeVisible();
 });

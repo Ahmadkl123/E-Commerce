@@ -40,7 +40,7 @@ async function migrate() {
 
     if (columns.length === 0) {
       console.log('Adding image_url column to products table...');
-      await connection.query('ALTER TABLE `products` ADD COLUMN `image_url` TEXT NULL AFTER `stock`');
+      await connection.query('ALTER TABLE `products` ADD COLUMN `image_url` MEDIUMTEXT NULL AFTER `stock`');
       console.log('✓ Column image_url added successfully.');
     } else {
       console.log('✓ Column image_url already exists in products table.');

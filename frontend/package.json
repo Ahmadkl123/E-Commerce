@@ -12,6 +12,9 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@paypal/react-paypal-js": "^10.6.1",
+    "@stripe/react-stripe-js": "^7.0.1",
+    "@stripe/stripe-js": "^10.2.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.4"

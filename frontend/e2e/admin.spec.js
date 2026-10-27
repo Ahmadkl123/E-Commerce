@@ -1,9 +1,16 @@
 import { expect, test } from '@playwright/test';
 import { loginAs, mockApi } from './mock-api';
 
+let db;
 test.beforeEach(async ({ page }) => {
-  await mockApi(page);
+  db = await mockApi(page);
 });
+
+// 2x2 red PNG, used to test photo uploads.
+const RED_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==',
+  'base64'
+);
 
 test('customers cannot open the admin dashboard', async ({ page }) => {
   await loginAs(page, 'customer@example.com', 'customer123');
@@ -60,4 +67,42 @@ test('product form validates input', async ({ page }) => {
   await dialog.getByLabel('Stock').fill('1');
   await dialog.getByRole('button', { name: 'Create product' }).click();
   await expect(dialog.getByText('Price must be a positive number.')).toBeVisible();
+});
+
+test('admin can upload a product photo that is saved with the product', async ({ page }) => {
+  await loginAs(page, 'admin@example.com', 'admin123');
+  await page.getByRole('button', { name: 'Add product' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Name').fill('Desk Lamp');
+  await dialog.getByLabel('Price (USD)').fill('24');
+  await dialog.getByLabel('Stock').fill('12');
+
+  await dialog.getByLabel('Upload product photo').setInputFiles({
+    name: 'lamp.png',
+    mimeType: 'image/png',
+    buffer: RED_PNG,
+  });
+  await expect(dialog.getByRole('img', { name: 'Product photo preview' })).toBeVisible();
+  await expect(dialog.getByText('Uploaded photo')).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Create product' }).click();
+  await expect(dialog).toBeHidden();
+
+  const saved = db.products.find((p) => p.name === 'Desk Lamp');
+  expect(saved.image_url).toMatch(/^data:image\/jpeg;base64,/);
+
+  const row = page.getByTestId('inventory-row').filter({ hasText: 'Desk Lamp' });
+  await expect(row.locator('img')).toHaveAttribute('src', saved.image_url);
+});
+
+test('product form rejects files that are not pictures', async ({ page }) => {
+  await loginAs(page, 'admin@example.com', 'admin123');
+  await page.getByRole('button', { name: 'Add product' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Upload product photo').setInputFiles({
+    name: 'notes.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('hello'),
+  });
+  await expect(dialog.getByText('Please choose a JPEG, PNG, WebP or GIF picture.')).toBeVisible();
 });

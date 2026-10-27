@@ -14,7 +14,8 @@ const USERS = [
   { id: 2, email: 'customer@example.com', password: 'customer123', role: 'customer' },
 ];
 
-export async function mockApi(page) {
+// payments: what GET /api/payments/config answers. Defaults to the demo checkout.
+export async function mockApi(page, { payments = { currency: 'usd', demo: true, stripe: null, paypal: null } } = {}) {
   const db = {
     products: SEED_PRODUCTS.map((p) => ({ ...p, created_at: '2026-10-15T12:00:00.000Z' })),
     users: USERS.map((u) => ({ ...u })),
@@ -22,6 +23,8 @@ export async function mockApi(page) {
     orders: [],
     nextProductId: 100,
     nextOrderId: 1,
+    paymentConfig: payments,
+    stripeIntents: 0,
   };
 
   const json = (route, status, body) =>
@@ -99,6 +102,14 @@ export async function mockApi(page) {
       return json(route, 200, { message: 'Product deleted successfully' });
     }
 
+    // ---- Payments ----
+    if (path === '/api/payments/config' && method === 'GET') return json(route, 200, db.paymentConfig);
+    if (path === '/api/payments/stripe/intent' && method === 'POST') {
+      if (!user) return json(route, 401, { error: 'Access token required' });
+      db.stripeIntents += 1;
+      return json(route, 200, { clientSecret: `pi_test_${db.stripeIntents}_secret_x`, amount: 0 });
+    }
+
     // ---- Cart & orders (authenticated) ----
     if (path.startsWith('/api/cart') || path.startsWith('/api/orders')) {
       if (!user) return json(route, 401, { error: 'Access token required' });
@@ -113,6 +124,7 @@ export async function mockApi(page) {
             name: p.name,
             price: p.price,
             stock: p.stock,
+            image_url: p.image_url ?? null,
             quantity,
             subtotal: Number((p.price * quantity).toFixed(2)),
           };
@@ -139,12 +151,29 @@ export async function mockApi(page) {
 
       if (path === '/api/orders' && method === 'POST') {
         const { items, total } = cartView();
+        const payment = body?.payment ?? null;
+        const methods = { card: 'Card', paypal: 'PayPal', apple_pay: 'Apple Pay', google_pay: 'Google Pay' };
+        if (payment && !methods[payment.method]) return json(route, 400, { error: 'Unsupported payment method.' });
+        if (payment?.method === 'card' && !/^\d{4}$/.test(payment.cardLast4 || '')) {
+          return json(route, 400, { error: 'Card payments must include the last 4 digits only.' });
+        }
         if (items.length === 0) return json(route, 400, { error: 'Cannot create order: Shopping cart is empty.' });
+        const paymentDetails = !payment
+          ? null
+          : payment.method === 'card'
+            ? `${payment.cardBrand || 'Card'} •••• ${payment.cardLast4}`
+            : payment.method === 'paypal'
+              ? `PayPal (${payment.email})`
+              : methods[payment.method];
+        const status = payment ? 'paid' : 'pending';
+        db.lastPayment = payment;
         const order = {
           id: db.nextOrderId++,
           userId: user.id,
           total,
-          status: 'pending',
+          status,
+          paymentMethod: payment?.method ?? null,
+          paymentDetails,
           createdAt: new Date().toISOString(),
           items: items.map((i, n) => ({
             id: n + 1,
@@ -160,7 +189,7 @@ export async function mockApi(page) {
         db.orders.push(order);
         return json(route, 201, {
           message: 'Order created successfully',
-          order: { id: order.id, userId: user.id, total, status: 'pending', itemsCount: items.length },
+          order: { id: order.id, userId: user.id, total, status, paymentMethod: order.paymentMethod, paymentDetails, itemsCount: items.length },
         });
       }
       if (path === '/api/orders' && method === 'GET') {

@@ -92,3 +92,18 @@ export const ArrowIcon = (p) => (
     <path d="M5 12h14M13 6l6 6-6 6" />
   </Icon>
 );
+
+export const ImageIcon = (p) => (
+  <Icon {...p}>
+    <rect x="3.5" y="4.5" width="17" height="15" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="M20.5 16l-5-5-8.5 8.5" />
+  </Icon>
+);
+
+export const CardIcon = (p) => (
+  <Icon {...p}>
+    <rect x="2.5" y="5.5" width="19" height="13" />
+    <path d="M2.5 9.5h19M6 15h4" />
+  </Icon>
+);

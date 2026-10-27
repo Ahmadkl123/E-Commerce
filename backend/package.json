@@ -8,7 +8,8 @@
     "dev": "node --watch src/index.js",
     "test": "jest",
     "db:setup": "node scripts/db-run.js setup",
-    "db:reset": "node scripts/db-run.js reset"
+    "db:reset": "node scripts/db-run.js reset",
+    "db:migrate": "node scripts/migrate-uploads-payments.js"
   },
   "keywords": [
     "ecommerce",
@@ -24,7 +25,8 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.12.0"
+    "mysql2": "^3.12.0",
+    "stripe": "^23.0.1"
   },
   "devDependencies": {
     "jest": "^29.7.0",

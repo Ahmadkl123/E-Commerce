@@ -11,7 +11,6 @@ export default function Cart() {
   const toast = useToast();
   const navigate = useNavigate();
   const [busyId, setBusyId] = useState(null);
-  const [checkingOut, setCheckingOut] = useState(false);
 
   async function run(productId, action) {
     setBusyId(productId);
@@ -24,18 +23,6 @@ export default function Cart() {
     }
   }
 
-  async function handleCheckout() {
-    setCheckingOut(true);
-    try {
-      const order = await cart.checkout();
-      toast(`Thank you! Order #${order.id} has been placed.`);
-      navigate('/account');
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setCheckingOut(false);
-    }
-  }
 
   if (cart.items.length === 0) {
     return (
@@ -118,8 +105,8 @@ export default function Cart() {
             <span>Total</span>
             <span data-testid="cart-total">{formatPrice(cart.total)}</span>
           </div>
-          <button className="btn btn-dark btn-block" onClick={handleCheckout} disabled={checkingOut}>
-            {checkingOut ? 'Placing order…' : 'Checkout'}
+          <button className="btn btn-dark btn-block" onClick={() => navigate('/checkout')}>
+            Checkout
           </button>
           <p className="muted small summary-note">
             Final prices are confirmed at checkout. By placing your order you agree to our terms of sale.
