@@ -52,6 +52,10 @@ resource "docker_container" "prometheus" {
     host_path      = abspath("${path.module}/prometheus.yml")
     container_path = "/etc/prometheus/prometheus.yml"
   }
+    volumes {
+    host_path      = abspath("${path.module}/alert.rules.yml")
+    container_path = "/etc/prometheus/alert.rules.yml"
+  }
 }
 
 resource "docker_container" "grafana" {
@@ -65,5 +69,27 @@ resource "docker_container" "grafana" {
   ports {
     internal = 3000
     external = var.grafana_port
+  }
+}
+resource "docker_image" "alertmanager" {
+  name = "prom/alertmanager:latest"
+}
+
+resource "docker_container" "alertmanager" {
+  name  = "alertmanager"
+  image = docker_image.alertmanager.image_id
+
+  networks_advanced {
+    name = docker_network.monitoring.name
+  }
+
+  ports {
+    internal = 9093
+    external = 9093
+  }
+
+  volumes {
+    host_path      = abspath("${path.module}/alertmanager.yml")
+    container_path = "/etc/alertmanager/alertmanager.yml"
   }
 }
