@@ -106,6 +106,13 @@ test('customer can change quantity and check out', async ({ page }) => {
   await expect(page.getByTestId('order')).toContainText('paid');
   await expect(page.locator('.order-detail')).toContainText('Mechanical Gaming Keyboard');
   await expect(page.locator('.order-detail')).toContainText('Paid with Visa •••• 4242');
+
+  // Every order has an id and a downloadable PDF receipt.
+  await expect(page.locator('.order-number')).toHaveText('Order #1');
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download receipt (PDF)' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('kestrel-receipt-1.pdf');
 });
 
 async function goToCheckout(page) {

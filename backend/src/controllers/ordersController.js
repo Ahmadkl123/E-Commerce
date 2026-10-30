@@ -1,5 +1,6 @@
 const pool = require('../db');
 const { PaymentError, verifyPayment, toCents } = require('../services/payments');
+const { buildReceipt } = require('../services/receipt');
 
 /**
  * Refunds a provider payment when the order cannot be completed after the
@@ -247,7 +248,54 @@ async function getOrders(req, res, next) {
   }
 }
 
+/**
+ * GET /api/orders/:id/receipt
+ * Downloads a PDF receipt for one of the authenticated user's orders.
+ * Another user's order answers 404 so order ids cannot be probed.
+ */
+async function getReceipt(req, res, next) {
+  try {
+    const orderId = Number(req.params.id);
+    if (!Number.isInteger(orderId) || orderId < 1) {
+      return res.status(400).json({ error: 'Invalid order id.' });
+    }
+
+    const [orders] = await pool.query(
+      `SELECT o.id, o.user_id, o.total, o.status, o.payment_method, o.payment_details,
+              o.payment_reference, o.created_at, u.email
+       FROM orders o
+       JOIN users u ON o.user_id = u.id
+       WHERE o.id = ?`,
+      [orderId]
+    );
+    const order = orders[0];
+    if (!order || order.user_id !== req.user.id) {
+      return res.status(404).json({ error: 'Order not found.' });
+    }
+
+    const [items] = await pool.query(
+      `SELECT oi.quantity, oi.unit_price, p.name AS product_name
+       FROM order_items oi
+       LEFT JOIN products p ON oi.product_id = p.id
+       WHERE oi.order_id = ?
+       ORDER BY oi.id ASC`,
+      [orderId]
+    );
+
+    const pdf = await buildReceipt({ order, items, customerEmail: order.email });
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="kestrel-receipt-${orderId}.pdf"`,
+      'Content-Length': pdf.length,
+    });
+    return res.status(200).send(pdf);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   createOrder,
-  getOrders
+  getOrders,
+  getReceipt
 };

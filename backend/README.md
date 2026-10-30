@@ -413,6 +413,11 @@ All error responses follow the standard JSON format:
     ]
     ```
 
+- **`GET /api/orders/:id/receipt`**
+  - **Auth**: `Bearer <token>`
+  - **Response `200 OK`**: The order's receipt as a PDF (`application/pdf`, downloaded as `kestrel-receipt-<id>.pdf`), built with PDFKit. It shows the order number, date, status, customer, payment method, line items and totals.
+  - **Errors**: `400 Bad Request` (invalid id), `404 Not Found` (no such order, or it belongs to another user).
+
 ### 6. Payments
 Real payments use **Stripe** (cards, Apple Pay, Google Pay) and **PayPal Checkout**. Each provider turns on when its keys are in `.env`; with no keys at all the store uses a simulated demo checkout.
 

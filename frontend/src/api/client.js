@@ -21,7 +21,7 @@ export function setSessionExpiredHandler(handler) {
   onSessionExpired = handler;
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+async function request(path, { method = 'GET', body, blob = false } = {}) {
   const headers = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
@@ -36,6 +36,9 @@ async function request(path, { method = 'GET', body } = {}) {
   } catch {
     throw new ApiError('Cannot reach the server. Is the backend running?', 0);
   }
+
+  // Files (e.g. PDF receipts) come back as a Blob; errors are still JSON.
+  if (blob && res.ok) return res.blob();
 
   const data = await res.json().catch(() => null);
 
@@ -85,6 +88,7 @@ export const api = {
   checkout: (payment) =>
     request('/api/orders', { method: 'POST', body: payment ? { payment } : undefined }),
   getOrders: () => request('/api/orders'),
+  getReceipt: (orderId) => request(`/api/orders/${orderId}/receipt`, { blob: true }),
 
   // Payments
   getPaymentConfig: () => request('/api/payments/config'),

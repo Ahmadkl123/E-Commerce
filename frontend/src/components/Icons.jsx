@@ -107,3 +107,11 @@ export const CardIcon = (p) => (
     <path d="M2.5 9.5h19M6 15h4" />
   </Icon>
 );
+
+export const DownloadIcon = (p) => (
+  <Icon {...p}>
+    <path d="M12 4v11" />
+    <path d="M7 10l5 5 5-5" />
+    <path d="M5 20h14" />
+  </Icon>
+);

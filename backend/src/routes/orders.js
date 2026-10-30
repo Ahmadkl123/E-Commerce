@@ -8,5 +8,6 @@ router.use(authenticateToken);
 
 router.post('/', ordersController.createOrder);
 router.get('/', ordersController.getOrders);
+router.get('/:id/receipt', ordersController.getReceipt);
 
 module.exports = router;

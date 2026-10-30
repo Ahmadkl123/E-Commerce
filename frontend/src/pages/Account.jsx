@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { DownloadIcon } from '../components/Icons';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { formatDate, formatPrice } from '../utils';
 
 export default function Account() {
@@ -10,6 +12,8 @@ export default function Account() {
   const [orders, setOrders] = useState(null);
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
+  const toast = useToast();
 
   useEffect(() => {
     api.getOrders().then(
@@ -20,6 +24,26 @@ export default function Account() {
       (err) => setError(err.message)
     );
   }, []);
+
+  // Fetches the PDF receipt (the request needs the auth token) and saves it.
+  async function downloadReceipt(orderId) {
+    setDownloadingId(orderId);
+    try {
+      const blob = await api.getReceipt(orderId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `kestrel-receipt-${orderId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   function handleLogout() {
     logout();
@@ -91,9 +115,22 @@ export default function Account() {
                   {openId === order.id && (
                     <tr className="order-detail">
                       <td colSpan={5}>
-                        {order.paymentDetails && (
-                          <p className="order-payment">Paid with {order.paymentDetails}</p>
-                        )}
+                        <div className="order-detail-head">
+                          <div>
+                            <p className="order-number">Order #{order.id}</p>
+                            {order.paymentDetails && (
+                              <p className="order-payment">Paid with {order.paymentDetails}</p>
+                            )}
+                          </div>
+                          <button
+                            className="btn btn-outline receipt-button"
+                            onClick={() => downloadReceipt(order.id)}
+                            disabled={downloadingId === order.id}
+                          >
+                            <DownloadIcon size={16} />
+                            {downloadingId === order.id ? 'Preparing…' : 'Download receipt (PDF)'}
+                          </button>
+                        </div>
                         <ul>
                           {order.items.map((item) => (
                             <li key={item.id}>

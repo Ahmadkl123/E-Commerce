@@ -2069,6 +2069,30 @@ textarea.input {
   font-size: 0.85rem;
   color: var(--text-2);
 }
+.order-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+.order-number {
+  margin: 0 0 2px;
+  font-weight: 600;
+}
+.receipt-button {
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 18px;
+  font-size: 0.85rem;
+}
+@media (max-width: 600px) {
+  .receipt-button {
+    width: 100%;
+  }
+}
 .status-paid::before {
   background: var(--success);
 }

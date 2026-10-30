@@ -195,6 +195,17 @@ export async function mockApi(page, { payments = { currency: 'usd', demo: true, 
       if (path === '/api/orders' && method === 'GET') {
         return json(route, 200, db.orders.filter((o) => o.userId === user.id).reverse());
       }
+      const receiptMatch = path.match(/^\/api\/orders\/(\d+)\/receipt$/);
+      if (receiptMatch && method === 'GET') {
+        const order = db.orders.find((o) => o.id === Number(receiptMatch[1]) && o.userId === user.id);
+        if (!order) return json(route, 404, { error: 'Order not found.' });
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/pdf',
+          headers: { 'Content-Disposition': `attachment; filename="kestrel-receipt-${order.id}.pdf"` },
+          body: `%PDF-1.4 mock receipt for order #${order.id}`,
+        });
+      }
     }
 
     return json(route, 404, { error: `Route not found: ${method} ${path}` });
